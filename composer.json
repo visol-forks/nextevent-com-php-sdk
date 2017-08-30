@@ -1,7 +1,7 @@
 {
   "name": "nextevent/php-sdk",
   "description": "SDK to interact with the NextEvent API written in PHP",
-  "homepage": "https://nextevent.com",
+  "homepage": "http://nextevent.com",
   "keywords": [
     "NextEvent",
     "PHP",
@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "support": {
-    "source": "https://github.com/nextevent/php-sdk",
-    "docs": "https://docs.nextevent.com"
+    "source": "https://github.com/nextevent-com/php-sdk",
+    "docs": "http://docs.nextevent.com/sdk"
   },
   "require": {
     "php": ">=5.4",
@@ -21,16 +21,5 @@
     "psr-4": {
       "NextEvent\\PHPSDK\\": "src"
     }
-  },
-  "repositories": {
-    "nexbyte-codestyle": {
-      "type": "vcs",
-      "url": "ssh://git@git.nexbyte.ch/diffusion/NCS/nexbyte-codestyle.git"
-    }
-  },
-  "require-dev": {
-    "nexbyte/codestyle": "dev-master",
-    "phpunit/phpunit": "~4.8.20",
-    "phpdocumentor/phpdocumentor": "2.*"
   }
 }
