@@ -73,10 +73,16 @@ class Env
    * @param mixed  $value
    * @param string $environment
    */
-  public static function setVar($key, $value, $environment = null)
+  public static function setVar($key, $value, $environment = '*')
   {
     $environment = isset($environment) ? $environment : self::getEnv();
-    self::$variables[strtoupper($environment)][$key] = $value;
+    if ($environment === '*') {
+      foreach (self::$variables as $env => $vars) {
+        self::$variables[$env][$key] = $value;
+      }
+    } else {
+      self::$variables[strtoupper($environment)][$key] = $value;
+    }
   }
 
 

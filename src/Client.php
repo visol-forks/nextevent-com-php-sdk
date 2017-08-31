@@ -112,6 +112,7 @@ class Client
    *   -  'authUsername'  string Username for authentication with IAM
    *   -  'authPassword'  string Password for authentication with IAM
    * -  optional:
+   *   -  'env'           string Which NextEvent environment to use: 'PROD', 'INT' or 'TEST'
    *   -  'cache'         StoreInterface Cache instance
    *   -  'logger'        LoggerInterface PSR-3 Logger instance
    *
@@ -142,6 +143,11 @@ class Client
       $options['logger'] = null;
     }
     $this->logger = Logger::wrapLogger($options['logger'], $this->loggerContext);
+
+    // set ENV
+    if (isset($options['env'])) {
+      Env::setEnv($options['env']);
+    }
 
     // initialize IAM Client
     $credentials = [
@@ -304,7 +310,7 @@ class Client
   /**
    * Fetch single Event by $eventId
    *
-   * @param int $eventId
+   * @param string $eventId
    * @return Event
    * @throws APIResponseException
    */
