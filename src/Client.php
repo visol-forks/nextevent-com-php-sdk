@@ -159,7 +159,7 @@ class Client
 
     // initialize httpClients
     $httpClientDefaults = [
-      'timeout' => 5,
+      'timeout' => 10,
       'headers' => []
     ];
     // reflect user language in SDK requests

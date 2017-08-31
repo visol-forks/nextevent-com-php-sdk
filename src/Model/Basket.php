@@ -51,7 +51,7 @@ class Basket extends Model
    */
   public function getExpires()
   {
-    return isset($this->source['expires']) ? new \DateTime($this->source['expires']) : null;
+    return isset($this->source['expires']) ? $this->dateFromJson($this->source['expires']) : null;
   }
 
 

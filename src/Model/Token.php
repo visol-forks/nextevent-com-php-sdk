@@ -34,7 +34,7 @@ class Token
    * Token constructor
    *
    * @param string $accessToken
-   * @param int    $expiresIn
+   * @param int    $expiresIn seconds
    * @param string $scope
    * @param string $tokenType
    */

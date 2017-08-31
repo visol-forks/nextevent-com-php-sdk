@@ -97,7 +97,7 @@ class Payment extends Model implements \Serializable
    */
   public function getExpires()
   {
-    return new \DateTime($this->source['expires']);
+    return $this->dateFromJson($this->source['expires']);
   }
 
   /**

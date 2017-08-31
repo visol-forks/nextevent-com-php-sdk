@@ -94,7 +94,7 @@ class Event extends Model
    */
   public function getStartDate()
   {
-    return isset($this->source['startDate']) ? new \DateTime($this->source['startDate']) : null;
+    return isset($this->source['startDate']) ? $this->dateFromJson($this->source['startDate']) : null;
   }
 
 
@@ -105,6 +105,6 @@ class Event extends Model
    */
   public function getEndDate()
   {
-    return isset($this->source['endDate']) ? new \DateTime($this->source['endDate']) : null;
+    return isset($this->source['endDate']) ? $this->dateFromJson($this->source['endDate']) : null;
   }
 }

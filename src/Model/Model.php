@@ -81,4 +81,23 @@ abstract class Model implements LogContextInterface
   {
     return json_encode($this->source);
   }
+
+
+  /**
+   * Convert date-time string to DateTime object and make sure tha it is in
+   * the same timezone as used by the server
+   *
+   * @param $string
+   * @return \DateTime|null
+   */
+  public function dateFromJson($string)
+  {
+    try {
+      $date = new \DateTime($string);
+      $date->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+      return $date;
+    } catch (\Exception $ex) {
+      return null;
+    }
+  }
 }
