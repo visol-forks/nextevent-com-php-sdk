@@ -63,11 +63,11 @@ class Category extends Model
   /**
    * Get the event identifier this category belongs to
    *
-   * @return int
+   * @return string
    */
   public function getEventId()
   {
-    return $this->source['event_id'];
+    return strval($this->source['event_id']);
   }
 
 

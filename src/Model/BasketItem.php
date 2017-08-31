@@ -73,7 +73,7 @@ class BasketItem extends Model
   /**
    * Get the event identifier this item refers to
    *
-   * @return int eventId
+   * @return string eventId
    */
   public function getEventId()
   {

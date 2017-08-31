@@ -128,7 +128,7 @@ class Widget
   /**
    * Compose HTML to be embedded in the host website
    *
-   * @param int $eventId ID of the event to book tickets for
+   * @param string $eventId ID of the event to book tickets for
    * @return string <script> tag loading the booking widget
    */
   public function generateEmbedCode($eventId = null)

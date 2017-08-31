@@ -29,11 +29,11 @@ class Event extends Model
   /**
    * Getter for the unique event identifier
    *
-   * @return int
+   * @return string
    */
   public function getId()
   {
-    return $this->source['identifier'];
+    return strval($this->source['identifier']);
   }
 
 
