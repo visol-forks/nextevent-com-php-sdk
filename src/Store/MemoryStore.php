@@ -16,7 +16,8 @@ class MemoryStore implements StoreInterface
 
 
   /**
-   * Default constrctor
+   * Construct an empty MemoryStore,
+   * which stores the data in memory during the request
    */
   public function __construct()
   {

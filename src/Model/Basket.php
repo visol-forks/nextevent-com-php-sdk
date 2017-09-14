@@ -47,11 +47,11 @@ class Basket extends Model
    *
    * Can be null if the basket has no specific expiration date
    *
-   * @return \DateTime|null
+   * @return DateTime|null
    */
   public function getExpires()
   {
-    return isset($this->source['expires']) ? $this->dateFromJson($this->source['expires']) : null;
+    return isset($this->source['expires']) ? DateTime::fromJson($this->source['expires']) : null;
   }
 
 

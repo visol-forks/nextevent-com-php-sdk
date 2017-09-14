@@ -9,7 +9,7 @@ use NextEvent\PHPSDK\Util\Log\LogContextInterface;
  * Base class for model classes
  *
  * Data structures retrieved from the NextEvent API are wrapped
- * into decendants of this class in order to provide a well-defined
+ * into dependants of this class in order to provide a well-defined
  * struct for accessing these informations.
  *
  * @package NextEvent\PHPSDK\Model
@@ -28,8 +28,9 @@ abstract class Model implements LogContextInterface
    * Model constructor
    *
    * Parse source data.
-   * @param array $source The source data as recevied from the API
-   * @throws \Exception
+   *
+   * @param array $source The source data as received from the API
+   * @throws InvalidModelDataException
    */
   public function __construct($source)
   {
@@ -80,24 +81,5 @@ abstract class Model implements LogContextInterface
   public function toString()
   {
     return json_encode($this->source);
-  }
-
-
-  /**
-   * Convert date-time string to DateTime object and make sure tha it is in
-   * the same timezone as used by the server
-   *
-   * @param $string
-   * @return \DateTime|null
-   */
-  public function dateFromJson($string)
-  {
-    try {
-      $date = new \DateTime($string);
-      $date->setTimezone(new \DateTimeZone(date_default_timezone_get()));
-      return $date;
-    } catch (\Exception $ex) {
-      return null;
-    }
   }
 }

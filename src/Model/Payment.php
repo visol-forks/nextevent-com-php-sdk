@@ -93,11 +93,11 @@ class Payment extends Model implements \Serializable
   /**
    * Get the expiration date/time of this payment authorization
    *
-   * @return \DateTime
+   * @return DateTime
    */
   public function getExpires()
   {
-    return $this->dateFromJson($this->source['expires']);
+    return DateTime::fromJson($this->source['expires']);
   }
 
   /**

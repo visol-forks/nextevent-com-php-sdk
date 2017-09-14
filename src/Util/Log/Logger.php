@@ -2,8 +2,9 @@
 
 namespace NextEvent\PHPSDK\Util\Log;
 
-use Psr\Log\LoggerInterface;
+use NextEvent\PHPSDK\Exception\InvalidArgumentException;
 use Psr\Log\AbstractLogger;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class Logger
@@ -34,6 +35,7 @@ class Logger extends AbstractLogger
    * @param LoggerInterface $logger
    * @param array           $defaultContext
    * @return Logger
+   * @throws InvalidArgumentException
    */
   public static function wrapLogger($logger = null, array $defaultContext = array())
   {
@@ -42,7 +44,7 @@ class Logger extends AbstractLogger
       return $logger;
     } else if ($logger) {
       if (!($logger instanceof LoggerInterface)) {
-        throw InvalidArgumentException('The logger object must implement Psr\Log\LoggerInterface');
+        throw new InvalidArgumentException('The logger object must implement Psr\Log\LoggerInterface');
       }
 
       $wrapped = new Logger($logger);

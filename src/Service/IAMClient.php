@@ -165,7 +165,23 @@ class IAMClient
       $this->cache->set(self::IAM_TOKEN_KEY, $token->toString());
       return $token;
     } catch (BadResponseException $ex) {
-      throw new APIResponseException($ex);
+      $responseException = new APIResponseException($ex);
+      $this->logger->error('the IAM Client failed fetching a new token', $responseException->toLogContext());
+      throw $responseException;
     }
+  }
+
+
+  /**
+   * Forces the IAM Client to fetch a new token.
+   *
+   * @return Token|null
+   */
+  public function getNewToken()
+  {
+    // clear cached token
+    $this->cache->set(self::IAM_TOKEN_KEY, null);
+    $this->logger->info('Force IAM Client to fetch a new token');
+    return $this->getToken();
   }
 }

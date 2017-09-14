@@ -3,9 +3,9 @@
 namespace NextEvent\PHPSDK\Store;
 
 /**
- * Impelents StoreInterface and stores its data in a temp file.
+ * Implements StoreInterface and stores its data in a temp file.
  *
- * If __opcache__ is available, us this to chache temp file for performance
+ * If __opcache__ is available, us this to cache temp file for performance
  * improvement.
  *
  * @package NextEvent\PHPSDK\Store
@@ -19,11 +19,18 @@ class OpcacheStore extends MemoryStore
 
 
   /**
-   * Default constrctor
+   * Construct OpcacheStore.
+   * Save cache in tmp directory and use Opcache for performance improvement.
+   * Optionally define a separate scope for the cache.
+   *
+   * @param string $scope whitespace and any special chars except _- are stripped
    */
-  public function __construct()
+  public function __construct($scope = '')
   {
-    $this->fileName = sys_get_temp_dir() . '/nextevent_sdk_cache_o8a76bfa0a87';
+    $this->fileName = sys_get_temp_dir() . '/nextevent_sdk_cache';
+    if ($scope) {
+      $this->fileName .= '_' . preg_replace('/[^A-Za-z0-9\-_]/', '', $scope);
+    }
   }
 
 
@@ -56,7 +63,7 @@ class OpcacheStore extends MemoryStore
 
 
   /**
-   * Determine the if value corresponding to a provided key exist
+   * Determine if the value corresponding to a provided key exists
    *
    * @param string $key
    * @return boolean
