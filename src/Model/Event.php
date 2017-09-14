@@ -90,21 +90,21 @@ class Event extends Model
   /**
    * Get the start date of this event
    *
-   * @return \DateTime|null
+   * @return DateTime|null
    */
   public function getStartDate()
   {
-    return isset($this->source['startDate']) ? $this->dateFromJson($this->source['startDate']) : null;
+    return isset($this->source['startDate']) ? DateTime::fromJson($this->source['startDate']) : null;
   }
 
 
   /**
    * Get the end date of this event
    *
-   * @return \DateTime|null
+   * @return DateTime|null
    */
   public function getEndDate()
   {
-    return isset($this->source['endDate']) ? $this->dateFromJson($this->source['endDate']) : null;
+    return isset($this->source['endDate']) ? DateTime::fromJson($this->source['endDate']) : null;
   }
 }

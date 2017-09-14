@@ -3,10 +3,10 @@
 namespace NextEvent\PHPSDK;
 
 use GuzzleHttp\Client as HTTPClient;
-use GuzzleHttp\Exception\BadResponseException;
 use NextEvent\PHPSDK\Exception\APIResponseException;
 use NextEvent\PHPSDK\Exception\BasketEmptyException;
 use NextEvent\PHPSDK\Exception\InvalidArgumentException;
+use NextEvent\PHPSDK\Exception\InvalidModelDataException;
 use NextEvent\PHPSDK\Exception\InvalidStoreException;
 use NextEvent\PHPSDK\Exception\MissingDocumentException;
 use NextEvent\PHPSDK\Exception\NotAuthenticatedException;
@@ -99,6 +99,11 @@ class Client
    */
   protected $loggerContext = [];
 
+  /**
+   * Define constants used as key for accessing the cache
+   */
+  const PAYMENT_TOKEN_KEY = 'sdk:paymentTokenKey';
+
 
   /**
    * Client constructor.
@@ -133,18 +138,24 @@ class Client
     $options['appUrl'] = rtrim($options['appUrl'], '/');
     $this->options = $options;
 
+    // generate version from options
+    $omitKeys = ['logger' => null, 'cache' => null];
+    $optionsVersion = hash('crc32', serialize(array_diff_key($options, $omitKeys)));
+
     // initialize Cache and Logger
     if (isset($options['cache']) && $options['cache'] instanceof StoreInterface) {
       $this->cache = $options['cache'];
     } else {
-      $this->cache = new OpcacheStore();
+      // don't use same cache for different options
+      $this->cache = new OpcacheStore($optionsVersion);
     }
+
     if (!isset($options['logger'])) {
       $options['logger'] = null;
     }
     $this->logger = Logger::wrapLogger($options['logger'], $this->loggerContext);
 
-    // set ENV
+    // set ENV by options
     if (isset($options['env'])) {
       Env::setEnv($options['env']);
     }
@@ -162,6 +173,7 @@ class Client
       'timeout' => 10,
       'headers' => []
     ];
+
     // reflect user language in SDK requests
     if (Env::getVar('locale')) {
       $httpClientDefaults['headers']['Accept-Language'] = Env::getVar('locale');
@@ -243,6 +255,7 @@ class Client
    * Get token for accessing the application api
    *
    * @return Token
+   * @throws APIResponseException in case fetching the Token failed
    */
   public function getApiToken()
   {
@@ -267,16 +280,53 @@ class Client
         $this->restClient->setAuthorizationHeader($token->getAuthorizationHeader());
         return true;
       } else {
-        $this->logger->warning('Authentication Token is expired', []);
+        $this->logger->warning('Authentication Token is expired');
         throw new NotAuthenticatedException('Authentication Token is expired');
       }
     } catch (APIResponseException $ex) {
-      $this->logger->error('Authentication Token is expired');
+      $this->logger->error('Could not authenticate SDK Client with IAM', $ex->toLogContext());
       throw new NotAuthenticatedException(
-        'Could not authorize, request failed: ' . $ex->getMessage(),
+        'Could not authenticate SDK Client, request failed: ' . $ex->getMessage(),
         $ex->getCode(),
         $ex
       );
+    }
+  }
+
+
+  /**
+   * Do $method request. In case of 401 Unauthorized, retry request with new token
+   *
+   * @internal
+   * @param string $method one of get, post, delete
+   * @param string $url request url
+   * @param array  $options optional request payload
+   * @param bool   $retry retry as long as true
+   * @return Model\HALResponse|bool
+   * @throws APIResponseException
+   * @throws InvalidArgumentException
+   */
+  protected function authenticatedRequest($method, $url, $options = array(), $retry = true)
+  {
+    $this->authenticate();
+    try {
+      switch ($method) {
+        case 'get':
+          return $this->restClient->get($url);
+        case 'post':
+          return $this->restClient->post($url, $options);
+        case 'delete':
+          return $this->restClient->delete($url);
+        default:
+          throw new InvalidArgumentException('Requires $method argument to be one of [get, post, delete]');
+      }
+    } catch (APIResponseException $ex) {
+      if ($retry && $ex->getCode() === 401) {
+        $this->logger->warning('Retry ' . $method . ' ' . $url . ' request with new token', $ex->toLogContext());
+        $this->iamClient->getNewToken();
+        return $this->authenticatedRequest($method, $url, $options, false);
+      }
+      throw $ex;
     }
   }
 
@@ -289,9 +339,8 @@ class Client
    */
   public function getEvents()
   {
-    $this->authenticate();
     try {
-      $response = $this->restClient->get('/jsonld/event');
+      $response = $this->authenticatedRequest('get', '/jsonld/event');
       $events = $response->getEmbedded()['itemListElement'];
       $this->logger->debug('Fetched events', ['count' => count($events)]);
       return array_map(
@@ -316,9 +365,8 @@ class Client
    */
   public function getEvent($eventId)
   {
-    $this->authenticate();
     try {
-      $response = $this->restClient->get('/jsonld/event/' . $eventId);
+      $response = $this->authenticatedRequest('get', '/jsonld/event/' . $eventId);
       $event = $response->getEmbedded();
       $this->logger->debug('Fetched event ' . $eventId, ['eventId' => $eventId]);
       return new Event($event);
@@ -339,9 +387,8 @@ class Client
    */
   public function getBasket($orderId)
   {
-    $this->authenticate();
     try {
-      $response = $this->restClient->get('/basket/' . $orderId);
+      $response = $this->authenticatedRequest('get', '/basket/' . $orderId);
       $this->logger->debug('Fetched basket', ['orderId' => $orderId]);
       $basket = $response->getEmbedded();
     } catch (APIResponseException $ex) {
@@ -363,7 +410,7 @@ class Client
       }
     } else {
       $this->logger->info('Basket is empty', ['orderId' => $orderId]);
-      throw new BasketEmptyException('Basket is does not exist');
+      throw new BasketEmptyException('Basket does not exist');
     }
   }
 
@@ -378,10 +425,9 @@ class Client
    */
   public function deleteBasket($orderId)
   {
-    $this->authenticate();
     $this->logger->info('Delete basket', ['orderId' => $orderId]);
     try {
-      return $this->restClient->delete('/basket/' . $orderId . '/item');
+      return $this->authenticatedRequest('delete', '/basket/' . $orderId . '/item');
     } catch (APIResponseException $ex) {
       if ($ex->getCode() === 404) {
         $this->logger->error('Failed delete basket', $ex->toLogContext());
@@ -404,10 +450,9 @@ class Client
    */
   public function deleteBasketItem($orderId, $orderItemId)
   {
-    $this->authenticate();
     $this->logger->info('Delete basket item', ['orderId' => $orderId, 'orderItemId' => $orderItemId]);
     try {
-    return $this->restClient->delete('/basket/' . $orderId . '/item/' . $orderItemId);
+    return $this->authenticatedRequest('delete', '/basket/' . $orderId . '/item/' . $orderItemId);
     } catch (APIResponseException $ex) {
       if ($ex->getCode() === 404) {
         throw new OrderItemNotFoundException('Order/Basket item not found for delete', $ex->getCode(), $ex);
@@ -423,32 +468,34 @@ class Client
    *
    * @param int $orderId
    * @return Payment invoice data
-   * @throws OrderNotFoundException
    * @throws APIResponseException
+   * @throws InvalidModelDataException if authorization was valid but not the returned data
+   * @throws OrderNotFoundException
    */
   public function authorizeOrder($orderId)
   {
-    $this->authenticate();
     $this->logger->debug('Authorize Order', ['orderId' => $orderId]);
     $options = [
       'headers' => [
-        'Authorization' => $this->iamClient->getToken()->getAuthorizationHeader(
-        ),
+        'Authorization' => $this->iamClient->getToken()->getAuthorizationHeader(),
         'Accept' => 'application/json'
       ],
       'timeout' => 20 // may take longer than 5 seconds
     ];
     try {
-      $response = $this->httpClient->post('/checkout/' . $orderId, $options);
+      $response = $this->authenticatedRequest('post', '/checkout/' . $orderId, $options);
       $this->logger->info('Order authorized', ['orderId' => $orderId]);
-      return new Payment(json_decode($response->getBody(), true));
-    } catch (BadResponseException $ex) {
+      return new Payment($response->getEmbedded());
+    } catch (InvalidModelDataException $ex) {
+      $this->logger->error('Authorized but failed to initialize the Payment from order authorization', $response->getEmbedded());
+      throw $ex;
+    } catch (APIResponseException $ex) {
       if ($ex->getResponse()->getStatusCode() === 404) {
         $this->logger->error('Failed to authorize order', ['orderId' => $orderId, 'errorCode' => $ex->getCode()]);
         throw new OrderNotFoundException($ex);
-      } else {
-        throw new APIResponseException($ex);
       }
+      $this->logger->error('Failed to authorize order', $ex->toLogContext());
+      throw $ex;
     }
   }
 
@@ -476,16 +523,30 @@ class Client
    * @param Payment $payment invoice data
    * @param array   $customer customer data
    * @param null    $transactionId
-   * @return array  Hash array with payment transaction data
+   * @return array Hash array with payment transaction data
+   * @throws APIResponseException
    */
   public function settlePayment($payment, $customer, $transactionId = null)
   {
-    return $this->paymentClient->settlePayment(
-      $this->getPaymentToken(),
-      $payment,
-      $customer,
-      $transactionId
-    );
+    try {
+      return $this->paymentClient->settlePayment(
+        $this->getPaymentToken(),
+        $payment,
+        $customer,
+        $transactionId
+      );
+    } catch (APIResponseException $ex) {
+      if ($ex->getCode() === 401) {
+        $this->getNewPaymentToken();
+        return $this->paymentClient->settlePayment(
+          $this->getPaymentToken(),
+          $payment,
+          $customer,
+          $transactionId
+        );
+      }
+      throw $ex;
+    }
   }
 
 
@@ -498,19 +559,15 @@ class Client
    */
   public function getPaymentToken()
   {
-    $PAYMENT_TOKEN_KEY = 'payment-token-key';
-
     // use cached token if available
-    $paymentToken = Token::fromString($this->cache->get($PAYMENT_TOKEN_KEY));
+    $paymentToken = Token::fromString($this->cache->get(self::PAYMENT_TOKEN_KEY));
     if ($paymentToken && !$paymentToken->isExpired()) {
       $this->logger->debug('Use PaymentToken from cache');
       return $paymentToken;
     }
 
-    $this->authenticate();
-
     try {
-      $response = $this->restClient->post('/payment/token');
+      $response = $this->authenticatedRequest('post', '/payment/token');
       $this->logger->info('Fetched PaymentToken from API', $response->toLogContext());
 
       $data = $response->getResponse()->json();
@@ -518,7 +575,7 @@ class Client
         $data['access_token'], $data['expires_in'], $data['scope'], $data['token_type']
       );
 
-      $this->cache->set($PAYMENT_TOKEN_KEY, $paymentToken->toString());
+      $this->cache->set(self::PAYMENT_TOKEN_KEY, $paymentToken->toString());
 
       return $paymentToken;
     } catch (APIResponseException $ex) {
@@ -532,19 +589,46 @@ class Client
 
 
   /**
+   * Forces refresh payment token
+   *
+   * @return Token
+   * @throws NotAuthorizedException
+   * @throws APIResponseException
+   */
+  public function getNewPaymentToken()
+  {
+    $this->cache->set(self::PAYMENT_TOKEN_KEY, null);
+    return $this->getPaymentToken();
+  }
+
+
+  /**
    * Abort payment
    *
    * @param Payment $payment invoice data
    * @param string  $reason why the payment is aborted
    * @return bool
+   * @throws APIResponseException
    */
   public function abortPayment($payment, $reason)
   {
-    return $this->paymentClient->abortPayment(
-      $this->getPaymentToken(),
-      $payment,
-      $reason
-    );
+    try {
+      return $this->paymentClient->abortPayment(
+        $this->getPaymentToken(),
+        $payment,
+        $reason
+      );
+    } catch (APIResponseException $ex) {
+      if ($ex->getCode() === 401) {
+        $this->getNewPaymentToken();
+        return $this->paymentClient->abortPayment(
+          $this->getPaymentToken(),
+          $payment,
+          $reason
+        );
+      }
+      throw $ex;
+    }
   }
 
 
@@ -607,10 +691,9 @@ class Client
    */
   public function getOrder($orderId, $embed = 'tickets,document')
   {
-    $this->authenticate();
     try {
       $query = $embed ? '?_embed=tickets,document' : '';
-      $response = $this->restClient->get('/order/' . $orderId . $query);
+      $response = $this->authenticatedRequest('get', '/order/' . $orderId . $query);
       $this->logger->debug('Order fetched', ['orderId' => $orderId]);
       $order = new Order($response->getEmbedded());
       $order->setRestClient($this->restClient);
