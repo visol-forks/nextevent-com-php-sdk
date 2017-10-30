@@ -17,7 +17,6 @@ class Category extends Model
   public function isValid()
   {
     return isset($this->source['category_id']) &&
-      isset($this->source['facets']) &&
       isset($this->source['displayname']) &&
       isset($this->source['event_id']);
   }
@@ -43,8 +42,10 @@ class Category extends Model
   {
     if (isset($this->source['facets']['title']['value']))
       return $this->source['facets']['title']['value'];
-    else
+    else if (isset($this->source['displayname']))
       return $this->source['displayname'];
+    else
+      return $this->source['title'];
   }
 
 

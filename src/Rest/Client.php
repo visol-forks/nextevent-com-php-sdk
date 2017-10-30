@@ -126,6 +126,41 @@ class Client
 
 
   /**
+   * Send a PUT request to $url
+   *
+   * @param string $url request url
+   * @param array  $payload optional, send payload as json
+   * @param string $authorizationHeader optional, authorizationHeader
+   * @return HALResponse
+   * @throws APIResponseException
+   */
+  public function put($url, $payload = null, $authorizationHeader = null)
+  {
+    $options = ['headers' => ['Accept' => 'application/json']];
+    if ($authorizationHeader) {
+      $options['headers']['Authorization'] = $authorizationHeader;
+    } else if ($this->authorizationHeader) {
+      $options['headers']['Authorization'] = $this->authorizationHeader;
+    }
+
+    if (isset($payload) && is_array($payload)) {
+      $options['json'] = $payload;
+    }
+
+    try {
+      $response = $this->httpClient->put($url, $options);
+      $hal = new HALResponse($response);
+      $this->logger->debug('REST PUT', (new APIResponse($response))->toLogContext());
+      return $hal;
+    } catch (RequestException $ex) {
+      $ex = new APIResponseException($ex);
+      $this->logger->error('Rest request failed', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
    * Send a DELETE request to $url
    *
    * @param string $url

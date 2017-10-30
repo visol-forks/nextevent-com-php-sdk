@@ -82,4 +82,42 @@ abstract class Model implements LogContextInterface
   {
     return json_encode($this->source);
   }
+
+
+  /**
+   * Get the value for the given variable.
+   *
+   * Should be used, if you expect the model to have custom properties which are not known/covered by the known getters
+   *
+   * @param string $var
+   * @return mixed
+   */
+  public function get($var)
+  {
+    return $this->source[$var];
+  }
+
+
+  /**
+   * Supports get-Methods for properties which are yet unknown.
+   * If the source of your model contains, e.g. a property named 'my_property',
+   * you can getMyProperty() to retrieve it's value.
+   * @param string $name
+   * @param array $args
+   * @return mixed
+   */
+  public function __call($name, $args)
+  {
+    if (strpos($name, 'get') === false) throw new \Exception('Prefix your method with \'get\'');
+    $prop = lcfirst(substr($name, 3));
+    if (isset($this->source[$prop])) {
+      return $this->source[$prop];
+    }
+    $propName = substr(strtolower(preg_replace('/([A-Z])/', '_$1', $name)), 4);
+    if (isset($this->source[$propName])) {
+      return $this->source[$propName];
+    } else {
+      throw new \Exception("Unknown property '$prop'");
+    }
+  }
 }

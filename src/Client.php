@@ -3,20 +3,33 @@
 namespace NextEvent\PHPSDK;
 
 use GuzzleHttp\Client as HTTPClient;
+use NextEvent\PHPSDK\Exception\AccessCodesNotFoundException;
 use NextEvent\PHPSDK\Exception\APIResponseException;
 use NextEvent\PHPSDK\Exception\BasketEmptyException;
+use NextEvent\PHPSDK\Exception\DeviceNotFoundException;
 use NextEvent\PHPSDK\Exception\InvalidArgumentException;
 use NextEvent\PHPSDK\Exception\InvalidModelDataException;
 use NextEvent\PHPSDK\Exception\InvalidStoreException;
+use NextEvent\PHPSDK\Exception\GateNotFoundException;
 use NextEvent\PHPSDK\Exception\MissingDocumentException;
 use NextEvent\PHPSDK\Exception\NotAuthenticatedException;
 use NextEvent\PHPSDK\Exception\NotAuthorizedException;
 use NextEvent\PHPSDK\Exception\OrderItemNotFoundException;
 use NextEvent\PHPSDK\Exception\OrderNotFoundException;
+use NextEvent\PHPSDK\Exception\ScanLogsNotFoundException;
+use NextEvent\PHPSDK\Model\AccessCode;
+use NextEvent\PHPSDK\Model\BaseCategory;
+use NextEvent\PHPSDK\Model\BasePrice;
+use NextEvent\PHPSDK\Model\Gate;
+use NextEvent\PHPSDK\Model\Category;
+use NextEvent\PHPSDK\Model\Collection;
+use NextEvent\PHPSDK\Model\Device;
+use NextEvent\PHPSDK\Model\ScanLog;
 use NextEvent\PHPSDK\Model\Basket;
 use NextEvent\PHPSDK\Model\Event;
 use NextEvent\PHPSDK\Model\Order;
 use NextEvent\PHPSDK\Model\Payment;
+use NextEvent\PHPSDK\Model\Price;
 use NextEvent\PHPSDK\Model\TicketDocument;
 use NextEvent\PHPSDK\Model\Token;
 use NextEvent\PHPSDK\Rest\Client as RESTClient;
@@ -25,6 +38,7 @@ use NextEvent\PHPSDK\Service\PaymentClient;
 use NextEvent\PHPSDK\Store\OpcacheStore;
 use NextEvent\PHPSDK\Store\StoreInterface;
 use NextEvent\PHPSDK\Util\Env;
+use NextEvent\PHPSDK\Util\Filter;
 use NextEvent\PHPSDK\Util\Log\Logger;
 use NextEvent\PHPSDK\Util\Widget;
 use Psr\Log\LoggerInterface;
@@ -45,6 +59,30 @@ use Psr\Log\LoggerInterface;
  * 5. <code>authorizeOrder($orderId)</code> start payment process
  * 6. <code>settlePayment($payment, $customer, $transactionId)</code> settle payment
  * 7. <code>getTicketDocuments($orderId)</code> get TicketDocuments with download uls
+ *
+ * ### Entrance check information
+ *
+ * 1. <code>getAccessCodes($filter)</code> get a collection of AccessCodes
+ * 2. <code>getGate($gateId)</code> get a Gate
+ * 3. <code>getGates($filter)</code> get a collection Gates
+ * 4. <code>getDevice($deviceId)</code> get a Device
+ * 5. <code>getDevices($filter)</code> get a collection of Devices
+ * 6. <code>getScanLogs($filter)</code> get a collection of ScanLogs
+ *
+ * ### Price and category information
+ *
+ * 1. <code>getBaseCategories($filter)</code> get a collection of BaseCategories
+ * 2. <code>getCategories($filter)</code> get a collection of Categories
+ * 3. <code>getBasePrices($filter)</code> get a collection of BasePrices
+ * 4. <code>getPrices($filter)</code> get a collection of Prices
+ *
+ * ### Persistance
+ *
+ * 1. <code>createEvent($event)</code> create a new Event
+ * 2. <code>createBaseCategory($categories)</code> create new BaseCategories and Categories
+ * 3. <code>createBasePrice($prices)</code> create new BasePrices and Prices
+ * 4. <code>updateBaseCategory($categories)</code> update BaseCategories and its Categories
+ * 5. <code>updateBasePrice($prices)</code> update BasePrices and its Prices
  *
  * @package NextEvent\PHPSDK
  */
@@ -315,6 +353,8 @@ class Client
           return $this->restClient->get($url);
         case 'post':
           return $this->restClient->post($url, $options);
+        case 'put':
+          return $this->restClient->put($url, $options);
         case 'delete':
           return $this->restClient->delete($url);
         default:
@@ -343,12 +383,22 @@ class Client
       $response = $this->authenticatedRequest('get', '/jsonld/event');
       $events = $response->getEmbedded()['itemListElement'];
       $this->logger->debug('Fetched events', ['count' => count($events)]);
-      return array_map(
-        function ($source) {
-          return new Event($source);
-        },
-        $events
+      $data = array(
+        '_links' => array(
+          'self' => '/jsonld/event',
+          'next' => null,
+          'prev' => null,
+          'last' => '/jsonld/event'
+        ),
+        '_embedded' => array(
+          'event' => $events
+        ),
+        'total_items' => count($events),
+        'page_size' => count($events),
+        'page' => 1,
+        'page_count' => 1,
       );
+      return new Collection('NextEvent\PHPSDK\Model\Event', array(), $data, $this->restClient);
     } catch (APIResponseException $ex) {
       $this->logger->error('Failed fetching events', $ex->toLogContext());
       throw $ex;
@@ -372,6 +422,30 @@ class Client
       return new Event($event);
     } catch (APIResponseException $ex) {
       $this->logger->error('Failed fetching event ' . $eventId, $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Persists, i.e. creates, the new given event.
+   * Make sure your created the event with {@link NextEvent\PHPSDK\Model\Event::spawn()}.
+   *
+   * On success the new event identifier will be stored in the given instance.
+   *
+   * @param Event $event
+   * @return Event
+   */
+  public function createEvent(Event $event)
+  {
+    try {
+      $response = $this->authenticatedRequest('post', '/event', $event->toArray());
+      $newEvent = $this->getEvent($response->getContent()['event_id']);
+      $event->setSource($newEvent->toArray());
+      $this->logger->debug('Event created', ['event' => $newEvent]);
+      return $event;
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed creating event', $ex->toLogContext());
       throw $ex;
     }
   }
@@ -721,5 +795,415 @@ class Client
       throw new InvalidArgumentException('Required $hash of the widget');
     }
     return new Widget($this->options['appUrl'], $hash);
+  }
+
+
+  /**
+   * Fetches all access codes for the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Supported filter are:
+   *                        * `code`
+   *                        * `category_id`
+   *                        * `price_id`
+   *                        * `access_code_id`
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function getAccessCodes($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/access_code?' . Filter::toString($filter));
+      $this->logger->debug('Access codes fetched', ['filter' => $filter]);
+      $codes = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\AccessCode', array(), $codes, $this->restClient);
+    } catch (APIResponseException $ex) {
+      if ($ex->getCode() !== 404) {
+        throw $ex;
+      }
+      $this->logger->error('Access codes not found', array_merge(['filter' => $filter], $ex->toLogContext()));
+      throw new AccessCodesNotFoundException('Access codes not found', $ex->getCode(), $ex);
+    }
+  }
+
+
+  /**
+   * Fetches all scan logs for the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Only `code` is supported for now.
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return array A collection of NextEvent\PHPSDK\Model\ScanLog
+   */
+  public function getScanLogs($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/scan_log?' . Filter::toString($filter));
+      $this->logger->debug('Scan logs fetched', ['filter' => $filter]);
+      $logs = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\ScanLog', array(), $logs, $this->restClient);
+    } catch (APIResponseException $ex) {
+      if ($ex->getCode() !== 404) {
+        throw $ex;
+      }
+      $this->logger->error('Scan logs not found', array_merge(['filter' => $filter], $ex->toLogContext()));
+      throw new ScanLogsNotFoundException('Scan logs not found', $ex->getCode(), $ex);
+    }
+  }
+
+
+  /**
+   * Fetches the gate for the given gate identifier.
+   *
+   * @param int $gateId
+   * @return NextEvent\PHPSDK\Model\Gate
+   */
+  public function getGate($gateId)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/gate/' . $gateId);
+      $this->logger->debug('Gate fetched', ['gateId' => $gateId]);
+      return new Gate($response->getEmbedded(), $this->restClient);
+    } catch (APIResponseException $ex) {
+      if ($ex->getCode() !== 404) {
+        throw $ex;
+      }
+      $this->logger->error('Gate not found', array_merge(['gateId' => $gateId], $ex->toLogContext()));
+      throw new GateNotFoundException('Gate not found', $ex->getCode(), $ex);
+    }
+  }
+
+
+  /**
+   * Fetches all gates for the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Supported filters are:
+   *                        * `gate_id`
+   *                        * `hash`
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function getGates($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/gate?' . Filter::toString($filter));
+      $this->logger->debug('Gates fetched', ['filter' => $filter]);
+      $gates = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\Gate', array($this->restClient), $gates, $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching gates', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Fetches the device for the given device identifier.
+   *
+   * @param int $deviceId
+   * @return NextEvent\PHPSDK\Model\Device
+   */
+  public function getDevice($deviceId)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/device/' . $deviceId);
+      $this->logger->debug('Device fetched', ['deviceId' => $deviceId]);
+      return new Device($response->getEmbedded());
+    } catch (APIResponseException $ex) {
+      if ($ex->getCode() !== 404) {
+        throw $ex;
+      }
+      $this->logger->error('Device not found', array_merge(['deviceId' => $deviceId], $ex->toLogContext()));
+      throw new DeviceNotFoundException('Device not found', $ex->getCode(), $ex);
+    }
+  }
+
+
+  /**
+   * Fetches all devices for the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Supported filters are:
+   *                      * `device_id`
+   *                      * `uuid`
+   *                      * `gate_id`
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function getDevices($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/device?' . Filter::toString($filter));
+      $this->logger->debug('Devices fetched', ['filter' => $filter]);
+      $devices = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\Device', array(), $devices, $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching devices', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Fetches all base categories for the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Supported filters are:
+   *                        * `base_category_id`
+   *                        * `event_id`
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function getBaseCategories($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/base_category?' . Filter::toString($filter));
+      $this->logger->debug('BaseCategories fetched', ['filter' => $filter]);
+      $baseCategories = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\BaseCategory', array($this->restClient), $baseCategories, $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching base categories', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Fetches all categories for the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Supported filters are:
+   *                        * `category_id`
+   *                        * `base_category_id`
+   *                        * `event_id`
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function getCategories($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/category?' . Filter::toString($filter));
+      $this->logger->debug('Categories fetched', ['filter' => $filter]);
+      $categories = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\Category', array(), $categories, $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching categories', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Fetches all base prices for the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Supported filters are:
+   *                        * `base_price_id`
+   *                        * `base_category_id`
+   *                        * `event_id`
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function getBasePrices($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/base_price?' . Filter::toString($filter));
+      $this->logger->debug('BasePrices fetched', ['filter' => $filter]);
+      $basePrices = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\BasePrice', array(), $basePrices, $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching base prices', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Fetches all prices for the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Supported filters are:
+   *                        * `price_id`
+   *                        * `category_id`
+   *                        * `base_price_id`
+   *                        * `event_id`
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function getPrices($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/price?' . Filter::toString($filter));
+      $this->logger->debug('Prices fetched', ['filter' => $filter]);
+      $prices = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\Price', array(), $prices, $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching prices', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Creates the base category(ies) provided in the $categories argument.
+   * Each base category has to hold at least one base price.
+   * The attached base prices will also be created automatically.
+   * Make sure you created the base category instances with {@link NextEvent\PHPSDK\Model\BaseCategory::spawn()}.
+   *
+   * On success the new base category ids will be stored in the given instance(s).
+   *
+   * @throws NextEvent\PHPSDK\Exception\InvalidModelDataException If a base category happens to have no price
+   * @param NextEvent\PHPSDK\Model\BaseCategory|array $categories Single or list of
+   *                                                              {@link NextEvent\PHPSDK\Model\BaseCategory}
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function createBaseCategory($categories)
+  {
+    if (!is_array($categories)) {
+      $categories = array($categories);
+    }
+    try {
+      $collection = new Collection('NextEvent\PHPSDK\Model\BaseCategory', array($this->restClient));
+      $pricesToCreate = array();
+      // First check for categories which have no price before sending requests
+      foreach ($categories as $category) {
+        $prices = $category->getBasePrices();
+        if (!isset($prices) || ($prices->count() === 0)) {
+          throw new InvalidModelDataException('You have to specify at least one base price for the base category! Use setBasePrices');
+        }
+      }
+      foreach ($categories as $category) {
+        $prices = $category->getBasePrices();
+        $category->setRestClient($this->restClient);
+        $response = $this->authenticatedRequest('post', '/base_category', $category->toArray());
+        $category->setSource($response->getContent());
+        $collection[] = $category;
+        foreach ($prices as $price) {
+          $pricesToCreate[] = $price->setBaseCategoryId($category->getId());
+        }
+      }
+      $createdPrices = $this->createBasePrice($pricesToCreate);
+      // Let the base prices collection point to the correct base prices which have now ids
+      foreach ($collection as $baseCategory) {
+        $prices = $createdPrices->filter(function($price) use ($baseCategory) {
+          return $price->getBaseCategoryId() === $baseCategory->getId();
+        });
+        $baseCategory->setBasePrices($prices);
+      }
+      $this->logger->debug('BaseCategories created', ['categories' => $collection]);
+      return $collection;
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed creating base categories', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Updates the base category(ies) provided in the $categories array.
+   *
+   * @param NextEvent\PHPSDK\Model\BaseCategory|array $categories Single or list of NextEvent\PHPSDK\Model\BaseCategory
+   * @return void
+   */
+  public function updateBaseCategory($categories)
+  {
+    if (!is_array($categories)) {
+      $categories = array($categories);
+    }
+    try {
+      foreach ($categories as $category) {
+        $data = $category->toArray(true);
+        $this->authenticatedRequest('put', '/base_category/' . $category->getId(), $data);
+      }
+      $eventIds = array_unique(array_map(function($category) {
+        return $category->getEventId();
+      }, $categories));
+
+      // Sync the current categories and prices for each event
+      foreach ($eventIds as $id) {
+        $this->authenticatedRequest('post', '/sync_categories/' . $id);
+      }
+      $this->logger->debug('BaseCategories updated', ['categories' => $categories]);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed updating base categories', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Creates the base price(s) provided in the $prices argument.
+   * Make sure you created the price instances with {@link NextEvent\PHPSDK\Model\BasePrice::spawn()}.
+   * Each provided base price have to be assigned to a base category. Otherwise an exception will be thrown.
+   *
+   * On success the new base price ids will be stored in the given instance(s).
+   *
+   * @throws NextEvent\PHPSDK\Exception\InvalidModelDataException If a base price happens to have no assigned base category.
+   * @param NextEvent\PHPSDK\Model\BasePrice|array $prices Single or list of NextEvent\PHPSDK\Model\BasePrice
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function createBasePrice($prices)
+  {
+    if (!is_array($prices)) {
+      $prices = array($prices);
+    }
+    try {
+      $collection = new Collection('NextEvent\PHPSDK\Model\BasePrice');
+      foreach ($prices as $price) {
+        if (!$price->getBaseCategory() === null ) {
+          throw new InvalidModelDataException('You have to specify a base category for the base price! Use setBaseCategory');
+        }
+      }
+      foreach ($prices as $price) {
+        $response = $this->authenticatedRequest('post', '/base_price', $price->toArray());
+        $price->setSource($response->getContent());
+        $collection[] = $price;
+      }
+      $eventIds = array_unique(array_map(function($price) {
+        return $price->getEventId();
+      }, $prices));
+
+      // Sync the current categories and prices for each event
+      foreach ($eventIds as $id) {
+        $this->authenticatedRequest('post', '/sync_categories/' . $id);
+      }
+      $this->logger->debug('BasePrices created', ['prices' => $collection]);
+      return $collection;
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed creating base prices', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Updates the base price(s) provided in the $prices array.
+   *
+   * @param NextEvent\PHPSDK\Model\BasePrice|array $prices Single or list of NextEvent\PHPSDK\Model\BasePrice
+   * @return void
+   */
+  public function updateBasePrice($prices)
+  {
+    if (!is_array($prices)) {
+      $prices = array($prices);
+    }
+    try {
+      foreach ($prices as $price) {
+        $data = $price->toArray(true);
+        $this->authenticatedRequest('put', '/base_price/' . $price->getId(), $data);
+      }
+      $eventIds = array_unique(array_map(function($price) {
+        return $price->getEventId();
+      }, $prices));
+      // Sync the current categories and prices for each event
+      foreach ($eventIds as $id) {
+        $this->authenticatedRequest('post', '/sync_categories/' . $id);
+      }
+      $this->logger->debug('BasePrices updated', ['prices' => $prices]);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed updating base prices', $ex->toLogContext());
+      throw $ex;
+    }
   }
 }

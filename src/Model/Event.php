@@ -6,23 +6,60 @@ namespace NextEvent\PHPSDK\Model;
  * Event model
  *
  * Model class for an event record registered in NextEvent.
- * Privides simplified access to event title, details, start/end dates, etc.
+ * Provides simplified access to event title, details, start/end dates, etc.
  *
  * @see http://schema.org/Event
  * @package NextEvent\PHPSDK\Model
  */
-class Event extends Model
+class Event extends MutableModel implements Spawnable
 {
+
+  /**
+   * Internal flag for determining whether this event is new, i.e. not persisted yet.
+   *
+   * @var bool
+   */
+  protected $_isNew;
+
+  /**
+   * @inheritdoc
+   */
+  public function __construct($source)
+  {
+    if (isset($source['identifier'])) {
+      parent::__construct($source);
+    } else {
+      if (!is_array($source)) {
+        throw new InvalidModelDataException('Given $source for ' . get_class($this) . ' creation is invalid');
+      }
+      $this->source = $source;
+    }
+  }
+
+
+  /**
+   * @inheritdoc
+   */
+  public function isNew()
+  {
+    return $this->_isNew;
+  }
+
+
   /**
    * @inheritdoc
    */
   public function isValid()
   {
     // some fields may be empty
-    return isset($this->source['identifier']) &&
-      isset($this->source['state']) &&
-      array_key_exists('name',$this->source) &&
-      array_key_exists('description', $this->source);
+    if ($this->isNew()) {
+      return isset($this->source['title']);
+    } else {
+      return isset($this->source['identifier']) &&
+        isset($this->source['state']) &&
+        array_key_exists('name', $this->source) &&
+        array_key_exists('description', $this->source);
+    }
   }
 
 
@@ -42,7 +79,7 @@ class Event extends Model
    *
    * Tells whether the event is active for sale
    * or in another pre or post sale state.
-   * 
+   *
    * Possible values are: draft, active, ended, processed,
    * cancelled, closed, pendingdebit, pendingcredit, credited, archived
    *
@@ -61,7 +98,20 @@ class Event extends Model
    */
   public function getTitle()
   {
-    return $this->source['name'];
+    return $this->isNew() ? $this->source['title'] : $this->source['name'];
+  }
+
+
+  /**
+   * Mutates the title of this event.
+   *
+   * @param string $title
+   * @return Event
+   */
+  public function setTitle($title)
+  {
+    $this->source['title'] = $title;
+    return $this;
   }
 
 
@@ -73,6 +123,19 @@ class Event extends Model
   public function getDescription()
   {
     return $this->source['description'];
+  }
+
+
+  /**
+   * Mutates the description of this event.
+   *
+   * @param string $description
+   * @return Event
+   */
+  public function setDescription($description)
+  {
+    $this->source['description'] = $description;
+    return $this;
   }
 
 
@@ -106,5 +169,35 @@ class Event extends Model
   public function getEndDate()
   {
     return isset($this->source['endDate']) ? DateTime::fromJson($this->source['endDate']) : null;
+  }
+
+
+  /**
+   * @access private
+   * @inheritdoc
+   */
+  public function setSource($source)
+  {
+    parent::setSource($source);
+    $this->_isNew = false;
+  }
+
+
+  /**
+   * Creates a new event instance with the given data.
+   * The resulting instance will be marked as a new event
+   * which has not been persisted via API.
+   *
+   * @param array $data
+   * @return NextEvent\PHPSDK\Model\Event
+   */
+  public static function spawn($data)
+  {
+    $event = new Event($data);
+    $event->_isNew = true;
+    if (!$event->isValid()) {
+      throw new InvalidModelDataException('Given $source for ' . get_class($event) . ' creation is invalid');
+    }
+    return $event;
   }
 }
