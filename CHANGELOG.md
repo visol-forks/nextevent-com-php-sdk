@@ -2,6 +2,11 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.1.1
+
+* Fixed throwing of `InvalidModelDataException` in the `*::spawn` methods.
+* Improved performance when creating multiple base categories and prices.
+
 ## 1.1.0
 
 * Added new Classes
@@ -36,7 +41,6 @@ All notable changes to the SDK will be documented in this file.
 
 * Fixed caching of IAM tokens
 * Differ between date-time and date objects on event date fields
-
 
 ## 1.0.0
 

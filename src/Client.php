@@ -1064,24 +1064,27 @@ class Client
       $categories = array($categories);
     }
     try {
-      $collection = new Collection('NextEvent\PHPSDK\Model\BaseCategory', array($this->restClient));
       $pricesToCreate = array();
+      $data = array();
       // First check for categories which have no price before sending requests
       foreach ($categories as $category) {
         $prices = $category->getBasePrices();
         if (!isset($prices) || ($prices->count() === 0)) {
           throw new InvalidModelDataException('You have to specify at least one base price for the base category! Use setBasePrices');
         }
+        $data[] = $category->toArray();
       }
-      foreach ($categories as $category) {
-        $prices = $category->getBasePrices();
+      $response = $this->authenticatedRequest('post', '/base_category', $data);
+      $collection = new Collection('NextEvent\PHPSDK\Model\BaseCategory', array($this->restClient), $response->getContent());
+      foreach ($collection as $i => $newCategory) {
+        $category = $categories[$i];
         $category->setRestClient($this->restClient);
-        $response = $this->authenticatedRequest('post', '/base_category', $category->toArray());
-        $category->setSource($response->getContent());
-        $collection[] = $category;
+        $category->setSource($newCategory->toArray());
+        $prices = $category->getBasePrices();
         foreach ($prices as $price) {
           $pricesToCreate[] = $price->setBaseCategoryId($category->getId());
         }
+        $collection[$i] = $category;
       }
       $createdPrices = $this->createBasePrice($pricesToCreate);
       // Let the base prices collection point to the correct base prices which have now ids
@@ -1149,16 +1152,18 @@ class Client
       $prices = array($prices);
     }
     try {
-      $collection = new Collection('NextEvent\PHPSDK\Model\BasePrice');
+      $data = array();
       foreach ($prices as $price) {
         if (!$price->getBaseCategory() === null ) {
           throw new InvalidModelDataException('You have to specify a base category for the base price! Use setBaseCategory');
         }
+        $data[] = $price->toArray();
       }
-      foreach ($prices as $price) {
-        $response = $this->authenticatedRequest('post', '/base_price', $price->toArray());
-        $price->setSource($response->getContent());
-        $collection[] = $price;
+      $response = $this->authenticatedRequest('post', '/base_price', $data);
+      $collection = new Collection('NextEvent\PHPSDK\Model\BasePrice', null, $response->getContent());
+      foreach ($collection as $i => $newPrice) {
+        $prices[$i]->setSource($newPrice->toArray());
+        $collection[$i] = $prices[$i];
       }
       $eventIds = array_unique(array_map(function($price) {
         return $price->getEventId();

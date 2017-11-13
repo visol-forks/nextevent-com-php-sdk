@@ -112,6 +112,8 @@ class Client
       $options['json'] = $payload;
     }
 
+    $options['timeout'] = 0;
+
     try {
       $response = $this->httpClient->post($url, $options);
       $hal = new HALResponse($response);

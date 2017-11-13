@@ -1,6 +1,7 @@
 <?php
 
 namespace NextEvent\PHPSDK\Model;
+use NextEvent\PHPSDK\Exception\InvalidModelDataException;
 
 /**
  * Event model
@@ -196,7 +197,7 @@ class Event extends MutableModel implements Spawnable
     $event = new Event($data);
     $event->_isNew = true;
     if (!$event->isValid()) {
-      throw new InvalidModelDataException('Given $source for ' . get_class($event) . ' creation is invalid');
+      throw new InvalidModelDataException('Given $data for ' . get_class($event) . ' creation is invalid');
     }
     return $event;
   }

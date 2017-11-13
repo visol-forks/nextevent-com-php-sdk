@@ -4,6 +4,7 @@ namespace NextEvent\PHPSDK\Model;
 
 use NextEvent\PHPSDK\Exception\InvalidBaseCategoryException;
 use NextEvent\PHPSDK\Exception\InvalidArgumentException;
+use NextEvent\PHPSDK\Exception\InvalidModelDataException;
 
 /**
  * BasePrice model
@@ -252,7 +253,7 @@ class BasePrice extends MutableModel implements Spawnable
     $basePrice->_isNew = true;
     $basePrice->setBaseCategory($baseCategory);
     if (!$basePrice->isValid()) {
-      throw new InvalidModelDataException('Given $source for ' . get_class($basePrice) . ' creation is invalid');
+      throw new InvalidModelDataException('Given $data for ' . get_class($basePrice) . ' creation is invalid');
     }
     return $basePrice;
   }
