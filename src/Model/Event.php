@@ -1,6 +1,7 @@
 <?php
 
 namespace NextEvent\PHPSDK\Model;
+
 use NextEvent\PHPSDK\Exception\InvalidModelDataException;
 
 /**
@@ -14,7 +15,6 @@ use NextEvent\PHPSDK\Exception\InvalidModelDataException;
  */
 class Event extends MutableModel implements Spawnable
 {
-
   /**
    * Internal flag for determining whether this event is new, i.e. not persisted yet.
    *
@@ -170,6 +170,17 @@ class Event extends MutableModel implements Spawnable
   public function getEndDate()
   {
     return isset($this->source['endDate']) ? DateTime::fromJson($this->source['endDate']) : null;
+  }
+
+
+  /**
+   * Get the title image of the event
+   *
+   * @return string|null The image url as string (if set)
+   */
+  public function getImage()
+  {
+    return isset($this->source['image']) ? $this->source['image'] : null;
   }
 
 

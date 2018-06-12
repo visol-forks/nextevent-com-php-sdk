@@ -127,6 +127,13 @@ class Collection implements Iterator, Countable, ArrayAccess
   protected $originalData;
 
   /**
+   * Enable auto-fetching of subsequent pages
+   *
+   * @var boolean
+   */
+  protected $autoFetch = true;
+
+  /**
    * Creates a new collection.
    *
    * @param string $modelClass The class of the models in this collection.
@@ -221,6 +228,31 @@ class Collection implements Iterator, Countable, ArrayAccess
 
 
   /**
+   * Getter for the autofetch flag
+   *
+   * @return boolean
+   */
+  public function getAutofetch()
+  {
+    return $this->autoFetch;
+  }
+
+
+  /**
+   * Setter for the autofetch flag
+   *
+   * If enabled, iterating the collection will automatically fetch all pages
+   * and thus list all records that match the request/query.
+   *
+   * @param boolean $autoFetch
+   */
+  public function setAutofetch($autoFetch)
+  {
+    $this->autoFetch = $autoFetch;
+  }
+
+
+  /**
    * Returns the current page.
    *
    * @return string
@@ -307,7 +339,7 @@ class Collection implements Iterator, Countable, ArrayAccess
   public function offsetGet($offset)
   {
     if ($offset < $this->totalItems) {
-      while ($offset >= count($this->models) && $this->fetchNextPage());
+      while ($offset >= count($this->models) && $this->autoFetch && $this->fetchNextPage());
     }
     return isset($this->models[$offset]) ? $this->models[$offset] : null;
   }
@@ -406,7 +438,7 @@ class Collection implements Iterator, Countable, ArrayAccess
   public function valid()
   {
     if ($this->position < $this->totalItems) {
-      while ($this->position >= count($this->models) && $this->fetchNextPage());
+      while ($this->position >= count($this->models) && $this->autoFetch && $this->fetchNextPage());
     }
     return isset($this->models[$this->position]);
   }

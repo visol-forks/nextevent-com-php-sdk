@@ -75,10 +75,24 @@ class Category extends Model
   /**
    * Get the name of the event this category belongs to
    *
-   * @return string
+   * @return string|null
    */
   public function getEventTitle()
   {
-    return $this->source['event_title'];
+    return isset($this->source['event_title']) ? $this->source['event_title'] : null;
+  }
+
+
+  /**
+   * Getter for the deleted flag
+   *
+   * Denotes that the category has been deleted and is no longer
+   * available for booking.
+   *
+   * @return bool True if this category has been deleted
+   */
+  public function isDeleted()
+  {
+    return !empty($this->source['deleted']);
   }
 }

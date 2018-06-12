@@ -4,6 +4,7 @@ namespace NextEvent\PHPSDK\Model;
 
 use NextEvent\PHPSDK\Exception\InvalidModelDataException;
 use NextEvent\PHPSDK\Util\Log\LogContextInterface;
+use Serializable;
 
 /**
  * Base class for model classes
@@ -12,9 +13,12 @@ use NextEvent\PHPSDK\Util\Log\LogContextInterface;
  * into dependants of this class in order to provide a well-defined
  * struct for accessing these informations.
  *
+ * With the Serializable interface implemented, all models
+ * can easily be serialized and stored in session data.
+ *
  * @package NextEvent\PHPSDK\Model
  */
-abstract class Model implements LogContextInterface
+abstract class Model implements LogContextInterface, Serializable
 {
   /**
    * Container for wrapped model data
@@ -94,30 +98,66 @@ abstract class Model implements LogContextInterface
    */
   public function get($var)
   {
-    return $this->source[$var];
+    return isset($this->source[$var]) ? $this->source[$var] : null;
   }
 
 
   /**
-   * Supports get-Methods for properties which are yet unknown.
+   * Supports getX or hasX Methods for properties which are yet unknown.
+   *
    * If the source of your model contains, e.g. a property named 'my_property',
-   * you can getMyProperty() to retrieve it's value.
+   * you can call `getMyProperty()` to retrieve it's value.
+   *
    * @param string $name
    * @param array $args
    * @return mixed
    */
   public function __call($name, $args)
   {
-    if (strpos($name, 'get') === false) throw new \Exception('Prefix your method with \'get\'');
+    if (strpos($name, 'get') !== 0 && strpos($name, 'has') !== 0) {
+      throw new \Exception("Prefix your method with 'get' or 'has'");
+    }
+
     $prop = lcfirst(substr($name, 3));
+    $propName = strtolower(preg_replace('/([A-Z])/', '_$1', $prop));
+
+    if (strpos($name, 'has') === 0) {
+      return isset($this->source[$propName]) || isset($this->source[$prop]);
+    }
+
     if (isset($this->source[$prop])) {
       return $this->source[$prop];
     }
-    $propName = substr(strtolower(preg_replace('/([A-Z])/', '_$1', $name)), 4);
     if (isset($this->source[$propName])) {
       return $this->source[$propName];
     } else {
       throw new \Exception("Unknown property '$prop'");
     }
+  }
+
+
+  /**
+   * String representation of object
+   *
+   * Implements Serializable interface
+   *
+   * @return string
+   */
+  public function serialize()
+  {
+    return $this->toString();
+  }
+
+
+  /**
+   * Constructs the object from a string
+   *
+   * Implements Serializable interface
+   *
+   * @param string
+   */
+  public function unserialize($serialized)
+  {
+    $this->source = json_decode($serialized, true);
   }
 }

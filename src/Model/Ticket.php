@@ -48,6 +48,17 @@ class Ticket extends Model
 
 
   /**
+   * Getter for ticket state
+   *
+   * @return string Either one of 'new', 'issued', 'revoked'
+   */
+  public function getState()
+  {
+    return $this->source['status'];
+  }
+
+
+  /**
    * Check for attached document
    *
    * @return bool
@@ -73,5 +84,16 @@ class Ticket extends Model
     } else {
       throw new MissingDocumentException('Missing document for ticket ' . $this->getId());
     }
+  }
+
+
+  /**
+   * Get the title of the event this ticket refers to
+   *
+   * @return string
+   */
+  public function getEventTitle()
+  {
+    return isset($this->source['event']['title']) ? $this->source['event']['title'] : '';
   }
 }

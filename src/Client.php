@@ -32,6 +32,7 @@ use NextEvent\PHPSDK\Model\Payment;
 use NextEvent\PHPSDK\Model\Price;
 use NextEvent\PHPSDK\Model\TicketDocument;
 use NextEvent\PHPSDK\Model\Token;
+use NextEvent\PHPSDK\Model\CancellationRequest;
 use NextEvent\PHPSDK\Rest\Client as RESTClient;
 use NextEvent\PHPSDK\Service\IAMClient;
 use NextEvent\PHPSDK\Service\PaymentClient;
@@ -53,12 +54,23 @@ use Psr\Log\LoggerInterface;
  *
  * 0. Authorize SDK by creating Client instance with credentials
  * 1. <code>getEvents()</code> List events
- * 2. <code>getWidget($hash)->generateEmbedCode($eventId)</code> Embed widget for specific event.
- * 3. Get orderId from the widget by postMessage.
+ * 2. <code>getWidget($hash)->generateEmbedCode($eventId)</code> Embed widget for specific event
+ * 3. Get orderId from the widget by postMessage
  * 4. <code>getBasket($orderId)</code> checkout the basket
  * 5. <code>authorizeOrder($orderId)</code> start payment process
  * 6. <code>settlePayment($payment, $customer, $transactionId)</code> settle payment
- * 7. <code>getTicketDocuments($orderId)</code> get TicketDocuments with download uls
+ * 7. <code>getTicketDocuments($orderId)</code> get TicketDocuments with download urls
+ *
+ * ### Rebooking
+ *
+ * 1. <code>rebookOrder()</code> create rebooking basket
+ * 2. <code>getWidget($hash)->generateEmbedCode(['basket' => $basket])</code> Embed widget with rebooking basket.
+ * 3. Complete order as in regular booking process
+ *
+ * ### Cancellation
+ *
+ * 1. <code>requestCancellation()</code> request cancellation authorization for a given order
+ * 2. <code>settleCancellation()</code> settle cancellation with the authorization data
  *
  * ### Entrance check information
  *
@@ -505,7 +517,7 @@ class Client
     } catch (APIResponseException $ex) {
       if ($ex->getCode() === 404) {
         $this->logger->error('Failed delete basket', $ex->toLogContext());
-        throw new OrderNotFoundException('Order/Basket not found for delete', $ex->getCode(), $ex);
+        throw new OrderNotFoundException('Order/Basket not found for deletion', $ex->getCode(), $ex);
       } else {
         throw $ex;
       }
@@ -529,7 +541,7 @@ class Client
     return $this->authenticatedRequest('delete', '/basket/' . $orderId . '/item/' . $orderItemId);
     } catch (APIResponseException $ex) {
       if ($ex->getCode() === 404) {
-        throw new OrderItemNotFoundException('Order/Basket item not found for delete', $ex->getCode(), $ex);
+        throw new OrderItemNotFoundException('Order/Basket item not found for deletion', $ex->getCode(), $ex);
       } else {
         throw $ex;
       }
@@ -538,10 +550,15 @@ class Client
 
 
   /**
-   * Start payment process with authorizing the order
+   * Start payment with authorizing the order
    *
-   * @param int $orderId
-   * @return Payment invoice data
+   * Payment in NextEvent is a two-step process starting with authorizing
+   * a given order for payment and a later settlement. Authorization freezes the
+   * basket to make sure the reserved tickets do not expire while the shopping
+   * application processes payment.
+   *
+   * @param int $orderId The order ID
+   * @return Payment Payment authorization data used for settlement
    * @throws APIResponseException
    * @throws InvalidModelDataException if authorization was valid but not the returned data
    * @throws OrderNotFoundException
@@ -576,6 +593,10 @@ class Client
 
   /**
    * Settle payment
+   * 
+   * This confirms a previously obtained payment authorization and
+   * completes the NextEvent order. The tickets will be finally booked
+   * for the supplied customer and will be issued afterwards.
    *
    * $customer example
    *
@@ -594,8 +615,8 @@ class Client
    * }
    * ```
    *
-   * @param Payment $payment invoice data
-   * @param array   $customer customer data
+   * @param Payment $payment Payment authorization data
+   * @param array   $customer Customer data
    * @param null    $transactionId
    * @return array Hash array with payment transaction data
    * @throws APIResponseException
@@ -679,7 +700,12 @@ class Client
   /**
    * Abort payment
    *
-   * @param Payment $payment invoice data
+   * Cancels the payment process previously started with `authorizeOrder()`
+   * using the payment authorization data. This will unfreeze the reservation
+   * and restore the basket linked with the payment authorization. To be called
+   * when the user aborts the payment process in the shopping application.
+   *
+   * @param Payment $payment Payment authorization data
    * @param string  $reason why the payment is aborted
    * @return bool
    * @throws APIResponseException
@@ -723,12 +749,12 @@ class Client
   public function getTicketDocuments($orderId, $waitFor=0)
   {
     $timeout = microtime(true) + $waitFor - 0.35;
-    $order = $this->getOrder($orderId, 'tickets,document');
+    $order = $this->getOrder($orderId, ['tickets','document']);
 
     // repeat fetching if tickets are not yet available
     while (microtime(true) < $timeout && !$order->allTicketsIssued()) {
       usleep(300000);
-      $order = $this->getOrder($orderId, 'tickets,document');
+      $order = $this->getOrder($orderId, ['tickets','document']);
     }
 
     if (!$order->allTicketsIssued()) {
@@ -753,30 +779,163 @@ class Client
 
 
   /**
-   * Get full order
+   * Get full order data
    *
    * use order->invoice->status == 'paid' for checking invoice status
    *
-   * @param int $orderId
-   * @param string $embed
+   * @param int $orderId The order ID
+   * @param array $embed List of associations to embed in the response (any of 'tickets','document','invoice','items', 'user', 'sales_channel')
    * @return Order Order model
    * @throws OrderNotFoundException
    * @throws APIResponseException
    */
-  public function getOrder($orderId, $embed = 'tickets,document')
+  public function getOrder($orderId, $embed = ['tickets','document','invoice'])
   {
     try {
-      $query = $embed ? '?_embed=tickets,document' : '';
+      if (!is_array($embed)) {
+        $embed = [$embed];
+      }
+      $query = !empty($embed) ? sprintf('?_embed=%s', join(',', $embed)) : '';
       $response = $this->authenticatedRequest('get', '/order/' . $orderId . $query);
-      $this->logger->debug('Order fetched', ['orderId' => $orderId]);
-      $order = new Order($response->getEmbedded());
-      $order->setRestClient($this->restClient);
-      return $order;
+      $this->logger->debug('Order fetched', ['orderId' => $orderId, 'embed' => $embed, 'result' => $response->getContent()]);
+      return new Order($response->getEmbedded(), $this->restClient);
     } catch (APIResponseException $ex) {
       if ($ex->getCode() === 404) {
         $this->logger->error('Order not found', array_merge(['orderId' => $orderId], $ex->toLogContext()));
         throw new OrderNotFoundException('Order not found', $ex->getCode(), $ex);
       }
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Fetches (completed) orders using the given filter.
+   *
+   * @param array $filter A list of filters, supported by the API.
+   *                      Supported filters are:
+   *                        * `state` = ['reservation','completed','replaced','cancelled','aborted']
+   *                        * `page_size`
+   *                        * `order` = 'asc|desc'
+   * @see NextEvent\PHPSDK\Util\Filter
+   * @return NextEvent\PHPSDK\Model\Collection
+   */
+  public function getOrders($filter)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/order?' . Filter::toString($filter));
+      $this->logger->debug('Orders fetched', ['filter' => $filter, 'result' => $response->getContent()]);
+      return new Collection('NextEvent\PHPSDK\Model\Order', array($this->restClient), $response->getContent(), $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching orders', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Rebook/modify a completed order
+   *
+   * Starts the rebooking process for the given order.
+   * As a result, a new "rebooking" basket will be created which can be
+   * processed like regular orders. When completed, this basket will replace
+   * the original order and invalidate the previously issued tickets.
+   *
+   * @param int $orderId
+   * @return Basket Rebooking basket model
+   * @throws OrderNotFoundException
+   * @throws APIResponseException
+   */
+  public function rebookOrder($orderId)
+  {
+    $this->logger->debug('Rebook order', ['orderId' => $orderId]);
+
+    try {
+      $response = $this->authenticatedRequest('post', '/order/' . $orderId . '/rebook', []);
+      $result = $response->getEmbedded();
+      $this->logger->info('Rebook order created', ['orderId' => $orderId, 'basketId' => $result['order_id']]);
+      // fetch rebooking basket right away
+      return $this->getBasket($result['order_id']);
+    } catch (InvalidModelDataException $ex) {
+      $this->logger->error('Authorized but failed to initialize the Payment from order authorization', $response->getEmbedded());
+      throw $ex;
+    } catch (APIResponseException $ex) {
+      if ($ex->getResponse()->getStatusCode() === 404) {
+        $this->logger->error('Failed to rebook order', ['orderId' => $orderId, 'errorCode' => $ex->getCode()]);
+        throw new OrderNotFoundException($ex);
+      }
+      $this->logger->error('Failed to rebook order', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Request the cancellation of a completed order
+   *
+   * Like payment, canceling orders in NextEvent is a two-step process starting
+   * with sending a request for cancellation. This is a pre-check to verify
+   * whether the given order is actually eligible for cancellation and returns
+   * an authorization object to be used for later settlement.
+   *
+   * @param int $orderId
+   * @return CancellationRequest Cancellation authorization used for settlement
+   * @throws OrderNotFoundException
+   * @throws APIResponseException
+   */
+  public function requestCancellation($orderId)
+  {
+    $this->logger->debug('Request cancellation', ['orderId' => $orderId]);
+
+    try {
+      $response = $this->authenticatedRequest('post', '/order/' . $orderId . '/cancel', []);
+      return new CancellationRequest($response->getEmbedded());
+    } catch (InvalidModelDataException $ex) {
+      $this->logger->error('Cancellation request failed with invalid response data', $response->getContent());
+      throw $ex;
+    } catch (APIResponseException $ex) {
+      if ($ex->getResponse()->getStatusCode() === 404) {
+        $this->logger->error('Cancellation request failed', ['orderId' => $orderId, 'errorCode' => $ex->getCode()]);
+        throw new OrderNotFoundException($ex);
+      }
+      $this->logger->error('Cancellation request failed', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Complete cancellation of an order
+   *
+   * DANGER ZONE: This confirms a previously obtained cancellation request
+   * and finally cancels the given order in the NextEvent system which will
+   * invalidate all tickets and deny access for entrance checks.
+   *
+   * @param CancellationRequest $request Cancellation authorization obtained from `requestCancellation()` 
+   * @param string $reason Optional message describing the reason why this order was cancelled
+   * @return void
+   * @throws OrderNotFoundException
+   * @throws APIResponseException
+   */
+  public function settleCancellation($request, $reason = null)
+  {
+    if (!($request instanceof CancellationRequest && $request->isValid())) {
+      throw new InvalidArgumentException('Requires CancellationRequest object');
+    }
+
+    $this->logger->debug('Settle cancellation', $request->toArray());
+
+    try {
+      $orderId = $request->getOrderId();
+      $requestData = $request->getSettlementData($reason ?: 'Cancelled via PHP SDK');
+      $response = $this->authenticatedRequest('post', '/order/' . $orderId . '/cancel', $requestData);
+      $this->logger->info('Cancellation completed', ['orderId' => $orderId, 'result' => $response->getEmbedded()]);
+    } catch (APIResponseException $ex) {
+      if ($ex->getResponse()->getStatusCode() === 404) {
+        $this->logger->error('Cancellation failed', ['orderId' => $orderId, 'errorCode' => $ex->getCode()]);
+        throw new OrderNotFoundException($ex);
+      }
+      $this->logger->error('Cancellation failed', $ex->toLogContext());
       throw $ex;
     }
   }

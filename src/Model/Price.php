@@ -79,4 +79,69 @@ class Price extends Model
   {
     return $this->source['currency'];
   }
+
+
+  /**
+   * Check if this price represents a sideevent price
+   *
+   * @return boolean
+   */
+  public function isSideeventPrice()
+  {
+    return isset($this->source['side_event']['parent_category_id']) && !empty($this->source['side_event']['parent_category_id']);
+  }
+
+
+  /**
+   * Check if this price represents a package price
+   *
+   * @return boolean
+   */
+  public function isPackagePrice()
+  {
+    return isset($this->source['side_event']['parent_category_id']) && !empty($this->source['side_event']['preselected_items']);
+  }
+
+
+  /**
+   * Check if this price represents a discount price
+   *
+   * Discount prices cannot be selected directly but are automatically
+   * chosen if a matching discount code was entered.
+   *
+   * @return boolean
+   */
+  public function isDiscountPrice()
+  {
+    return !empty($this->source['parent_price_id']);
+  }
+
+
+  /**
+   * Check if this price is a hidden item
+   *
+   * Hidden prices are not directly selectable for customers but
+   * represent the price that is charged when a ticket is added
+   * indirectly via sideevent selection or when booked as a package.
+   *
+   * @return boolean
+   */
+  public function isHidden()
+  {
+    return $this->isSideeventPrice() || $this->isPackagePrice() || $this->isDiscountPrice();
+  }
+
+
+  /**
+   * Getter for the deleted flag
+   *
+   * Denotes that the price has been deleted and is no longer
+   * available for booking.
+   *
+   * @return bool True if this price has been deleted
+   */
+  public function isDeleted()
+  {
+    return !empty($this->source['deleted']);
+  }
 }

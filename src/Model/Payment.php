@@ -8,12 +8,9 @@ namespace NextEvent\PHPSDK\Model;
  * Represents a payment authorization record issued by the API.
  * Can be used to process payment and finally settle orders.
  *
- * With the Serializable interface implemented, payment models
- * can easily be serialized and stored in session data.
- *
  * @package NextEvent\PHPSDK\Model
  */
-class Payment extends Model implements \Serializable
+class Payment extends Model
 {
   /**
    * @inheritdoc
@@ -121,30 +118,5 @@ class Payment extends Model implements \Serializable
   public function getCurrency()
   {
     return $this->source['currency'];
-  }
-
-
-  /**
-   * String representation of object
-   *
-   * Implements Serializable interface
-   *
-   * @return string
-   */
-  public function serialize()
-  {
-    return $this->toString();
-  }
-
-  /**
-   * Constructs the object from a string
-   *
-   * Implements Serializable interface
-   *
-   * @param string
-   */
-  public function unserialize($serialized)
-  {
-    $this->source = json_decode($serialized, true);
   }
 }

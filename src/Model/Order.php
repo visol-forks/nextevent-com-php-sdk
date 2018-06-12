@@ -39,8 +39,9 @@ class Order extends Model
    * Order constructor
    *
    * @param array $source
+   * @param NextEvent\PHPSDK\Rest\Client|null $restClient Rest client reference for fetching base prices.
    */
-  public function __construct(array $source)
+  public function __construct(array $source, $restClient = null)
   {
     parent::__construct($source);
 
@@ -51,6 +52,10 @@ class Order extends Model
         },
         $this->source['tickets']
       );
+    }
+
+    if (!empty($restClient)) {
+      $this->restClient = $restClient;
     }
   }
 
@@ -81,6 +86,28 @@ class Order extends Model
 
 
   /**
+   * Getter for the order identifier
+   *
+   * @return int orderId
+   */
+  public function getId()
+  {
+    return $this->source['order_id'];
+  }
+
+
+  /**
+   * Getter for the order booking date
+   *
+   * @return DateTime|null
+   */
+  public function getOrderDate()
+  {
+    return isset($this->source['orderdate']) ? DateTime::fromJson($this->source['orderdate']) : null;
+  }
+
+
+  /**
    * Getter for items assigned to this order
    *
    * @return OrderItem[]
@@ -89,20 +116,26 @@ class Order extends Model
   public function getOrderItems()
   {
     // lazy-fetch items for this order
-    if (empty($this->items_cache) && !isset($this->source['order_items']) && $this->restClient) {
+    if (empty($this->items_cache) && !isset($this->source['items']) && $this->restClient) {
       $response = $this->restClient->get('/order_items_by?order_id=' . intval($this->source['order_id']));
-      $this->source['order_items'] = $response->getEmbedded()['order_item'];
+      $this->source['items'] = $response->getEmbedded()['order_item'];
     }
 
     // convert raw API data into a list of OrderItem objects
-    if (empty($this->items_cache) && !empty($this->source['order_items'])) {
-      $this->items_cache = array_map(
-        function ($source) {
-          $source['order_id'] = $this->source['order_id'];
-          return new OrderItem($source);
-        },
-        $this->source['order_items']
+    if (empty($this->items_cache) && !empty($this->source['items'])) {
+      // build a list of OrderItem models
+      $items = [];
+      $order_id = $this->source['order_id'];
+      array_walk(
+        $this->source['items'],
+        function($source) use (&$items, $order_id) {
+          $source['order_id'] = $order_id;
+          $items[$source['order_item_id']] = new OrderItem($source);
+        }
       );
+
+      // group items by their parent_ticket_id references
+      $this->items_cache = Basket::groupItems($items);
     }
 
     return $this->items_cache;
@@ -115,9 +148,9 @@ class Order extends Model
    * @return Ticket[]
    * @throws TicketNotFoundException
    */
-  public function getTickets()
+  public function getTickets($force = false)
   {
-    if (!$this->hasTickets() || !$this->isComplete()) {
+    if (!$this->hasTickets() || !($force || $this->isComplete())) {
       throw new TicketNotFoundException();
     }
 
@@ -136,6 +169,46 @@ class Order extends Model
   public function getState()
   {
     return $this->source['state'];
+  }
+
+
+  /**
+   * Getter for the total amount of this order
+   *
+   * @return float
+   */
+  public function getTotal()
+  {
+    if (isset($this->source['amount'])) {
+      return $this->source['amount'];
+    }
+
+    // aggegate total amount from items
+    $totalPrice = 0;
+    $orderCurrency = null;
+    foreach ($this->getOrderItems() as $item) {
+      $price = $item->getPrice();
+      $totalPrice += $price->getPrice();
+      if (!$orderCurrency) {
+        $orderCurrency = $price->getCurrency();
+      }
+    }
+
+    $this->source['amount'] = $totalPrice;
+    $this->source['currency'] = $orderCurrency;
+
+    return $this->source['amount'];
+  }
+
+
+  /**
+   * Getter for the currency code of this order
+   *
+   * @return string ISO 4217 currency code
+   */
+  public function getCurrency()
+  {
+    return isset($this->source['currency']) ? $this->source['currency'] : null;
   }
 
 

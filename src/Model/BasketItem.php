@@ -21,6 +21,21 @@ class BasketItem extends Model
    */
   protected $price;
 
+  /**
+   * @var DiscountCode
+   */
+  protected $discountCode;
+
+  /**
+   * @var Seat
+   */
+  protected $seat;
+
+  /**
+   * @var array
+   */
+  protected $children = [];
+
 
   /**
    * BasketItem constructor
@@ -33,6 +48,13 @@ class BasketItem extends Model
     parent::__construct($source);
     $this->category = new Category($source['category']);
     $this->price = new Price($source['price']);
+
+    if (!empty($source['discount_code'])) {
+      $this->discountCode = new DiscountCode($source['discount_code']);
+    }
+    if (!empty($source['seat'])) {
+      $this->seat = new Seat($source['seat']);
+    }
   }
 
 
@@ -133,6 +155,17 @@ class BasketItem extends Model
 
 
   /**
+   * Get the model for discount information
+   *
+   * @return DiscountCode|null
+   */
+  public function getDiscountCode()
+  {
+    return $this->discountCode;
+  }
+
+
+  /**
    * Get the type of the basket/order item
    *
    * @return string Either 'ticket' or 'addition'
@@ -140,5 +173,73 @@ class BasketItem extends Model
   public function getType()
   {
     return $this->source['type'];
+  }
+
+
+  /**
+   * Getter for the deleted flag
+   *
+   * Rebookig items have the deleted flag set if they are
+   * subject to be cancelled from the order.
+   *
+   * @return bool True if this item has been flagged for deletion
+   */
+  public function isDeleted()
+  {
+    return !empty($this->source['deleted']);
+  }
+
+
+  /**
+   * Determine whether this basket item has seat information assigned
+   * 
+   * @return bool True if this is a seated ticket and seat information is available
+   */
+  public function hasSeat()
+  {
+    return !empty($this->seat);
+  }
+
+
+  /**
+   * Getter for seat information
+   *
+   * @return Seat|null
+   */
+  public function getSeat()
+  {
+    return $this->seat;
+  }
+
+
+  /**
+   * Register the given BasketItem as a child element
+   * 
+   * @param BasketItem item
+   */
+  public function addChildItem(BasketItem $item)
+  {
+    // add child item price
+    $priceData = $this->getPrice()->toArray();
+    $priceData['real_price'] += $item->getPrice()->getPrice();
+    $this->price = new Price($priceData);
+
+    $this->children[] = $item;
+  }
+
+
+  /**
+   * Getter for child items
+   *
+   * Child items represent additional basket items like ticket options, side events, etc.
+   * which are coupled with the given basket item and cannot be booked individually.
+   *
+   * They also contribute to the overall price and may or may not be listed in a basket summary.
+   *
+   * @return array List of nested BasketItems
+   */
+  public function getChildren()
+  {
+    return $this->children;
   }
 }

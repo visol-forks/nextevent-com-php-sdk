@@ -14,6 +14,15 @@
 
   var iframe;
 
+  // list of deprecated post message types (old => new)
+  var message_aliases = 
+    {
+    'current_step':    'currentStep',
+    'basket_update':   'basketUpdate',
+    'close_widget':    'closeWidget',
+    'exit_fullscreen': 'exitFullscreen',
+    'scroll_top':      'scrollTop',
+    };
 
   /**
    * Compare post message origin with the location of our embedded iframe
@@ -102,6 +111,10 @@
    */
   NextEventWidgetAPI.addMessageHandler = function (type, handler)
     {
+    // rename deprecated type identifier
+    if (message_aliases[type])
+      type = message_aliases[type];
+
     var type_handlers = message_handlers[type] || [];
     if (type_handlers.indexOf(handler) === -1)
       type_handlers.push(handler);
@@ -115,6 +128,10 @@
    */
   NextEventWidgetAPI.removeMessageHandler = function (type, handler)
     {
+    // rename deprecated type identifier
+    if (message_aliases[type])
+      type = message_aliases[type];
+
     if (message_handlers[type])
       {
       var idx = message_handlers[type].indexOf(handler);
