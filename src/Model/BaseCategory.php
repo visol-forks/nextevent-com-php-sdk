@@ -42,7 +42,7 @@ class BaseCategory extends MutableModel implements Spawnable
 
   /**
    * @inheritdoc
-   * @param NextEvent\PHPSDK\Rest\Client|null $restClient Rest client reference for fetching base prices.
+   * @param \NextEvent\PHPSDK\Rest\Client|null $restClient Rest client reference for fetching base prices.
    */
   public function __construct($source, $restClient = null)
   {
@@ -81,7 +81,7 @@ class BaseCategory extends MutableModel implements Spawnable
   /**
    * Set the rest client for this base category, base prices may be fetched for it.
    *
-   * @param NextEvent\PHPSDK\Rest\Client $restClient
+   * @param \NextEvent\PHPSDK\Rest\Client $restClient
    * @return BasePrice
    */
   public function setRestClient($restClient)
@@ -99,6 +99,28 @@ class BaseCategory extends MutableModel implements Spawnable
   public function getId()
   {
     return isset($this->source['base_category_id']) ? $this->source['base_category_id'] : -1;
+  }
+
+
+  /**
+   * Get the creation data of this base category
+   *
+   * @return DateTime|null
+   */
+  public function getCreatedDate()
+  {
+    return isset($this->source['created']) ? DateTime::fromJson($this->source['created']) : null;
+  }
+
+
+  /**
+   * Get the changed date of this base category
+   *
+   * @return DateTime|null
+   */
+  public function getChangedDate()
+  {
+    return isset($this->source['changed']) ? DateTime::fromJson($this->source['changed']) : null;
   }
 
 
@@ -162,7 +184,7 @@ class BaseCategory extends MutableModel implements Spawnable
   /**
    * Returns a list of base prices for this base category.
    *
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @return Collection
    */
   public function getBasePrices()
   {
@@ -179,7 +201,7 @@ class BaseCategory extends MutableModel implements Spawnable
   /**
    * Sets the base prices for this base category.
    *
-   * @param NextEvent\PHPSDK\Model\Collection $basePrices
+   * @param \NextEvent\PHPSDK\Model\Collection $basePrices
    * @return void
    */
   public function setBasePrices($basePrices)
@@ -231,7 +253,7 @@ class BaseCategory extends MutableModel implements Spawnable
    * Use this method if you want to create a new base category and persist it via the client.
    *
    * @param array $data
-   * @return NextEvent\PHPSDK\Model\BaseCategory
+   * @return BaseCategory
    */
   public static function spawn($data)
   {

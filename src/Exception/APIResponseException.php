@@ -3,8 +3,8 @@
 namespace NextEvent\PHPSDK\Exception;
 
 use GuzzleHttp\Exception\BadResponseException;
-use GuzzleHttp\Message\Request;
-use GuzzleHttp\Message\Response;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
 use NextEvent\PHPSDK\Util\Log\LogContextInterface;
 
 /**
@@ -75,7 +75,7 @@ class APIResponseException extends \Exception implements LogContextInterface
       $this->request_id = $this->getRequestID();
 
       try {
-        $response_data = $this->response->json();
+        $response_data = json_decode($this->response->getBody()->getContents(), true);
         if (isset($response_data['description'])) {
           $this->description = $response_data['description'];
         } else if (isset($response_data['detail'])) {
@@ -104,7 +104,8 @@ class APIResponseException extends \Exception implements LogContextInterface
    */
   public function getRequestID()
   {
-    return isset($this->response) ? $this->response->getHeader('x-request-id') : null;
+    $header = isset($this->response) ? $this->response->getHeader('x-request-id') : null;
+    return isset($header) && isset($header[0]) ? $header[0] : null;
   }
 
 
@@ -162,7 +163,7 @@ class APIResponseException extends \Exception implements LogContextInterface
     $context = ['code' => $this->getCode(), 'message' => $this->getMessage()];
 
     if ($this->request) {
-      $context['requestURL'] = $this->getRequest()->getUrl();
+      $context['requestURL'] = $this->getRequest()->getUri();
       $context['requestMethod'] = $this->getRequest()->getMethod();
     }
 

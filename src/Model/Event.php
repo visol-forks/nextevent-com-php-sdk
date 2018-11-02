@@ -152,6 +152,27 @@ class Event extends MutableModel implements Spawnable
 
 
   /**
+   * Get the creation data of this event
+   *
+   * @return DateTime|null
+   */
+  public function getCreatedDate()
+  {
+    return isset($this->source['createdDate']) ? DateTime::fromJson($this->source['createdDate']) : null;
+  }
+
+
+  /**
+   * Get the changed date of this event
+   *
+   * @return DateTime|null
+   */
+  public function getChangedDate()
+  {
+    return isset($this->source['changedDate']) ? DateTime::fromJson($this->source['changedDate']) : null;
+  }
+
+  /**
    * Get the start date of this event
    *
    * @return DateTime|null
@@ -201,7 +222,7 @@ class Event extends MutableModel implements Spawnable
    * which has not been persisted via API.
    *
    * @param array $data
-   * @return NextEvent\PHPSDK\Model\Event
+   * @return Event
    */
   public static function spawn($data)
   {

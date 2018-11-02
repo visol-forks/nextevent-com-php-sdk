@@ -2,7 +2,7 @@
 
 namespace NextEvent\PHPSDK\Model;
 
-use GuzzleHttp\Message\ResponseInterface;
+use GuzzleHttp\Psr7\ResponseInterface;
 
 /**
  * Class HALResponse

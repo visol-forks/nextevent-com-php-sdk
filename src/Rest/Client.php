@@ -5,6 +5,7 @@ namespace NextEvent\PHPSDK\Rest;
 use GuzzleHttp\Client as HTTPClient;
 use GuzzleHttp\Exception\RequestException;
 use NextEvent\PHPSDK\Exception\APIResponseException;
+use NextEvent\PHPSDK\Exception\InvalidArgumentException;
 use NextEvent\PHPSDK\Model\APIResponse;
 use NextEvent\PHPSDK\Model\HALResponse;
 use NextEvent\PHPSDK\Util\Log\Logger;
@@ -71,22 +72,7 @@ class Client
    */
   public function get($url, $authorizationHeader = null)
   {
-    $options = ['headers' => ['Accept' => 'application/json']];
-    if ($authorizationHeader) {
-      $options['headers']['Authorization'] = $authorizationHeader;
-    } else if ($this->authorizationHeader) {
-      $options['headers']['Authorization'] = $this->authorizationHeader;
-    }
-    try {
-      $response = $this->httpClient->get($url, $options);
-      $hal = new HALResponse($response);
-      $this->logger->debug('REST GET', (new APIResponse($response))->toLogContext());
-      return $hal;
-    } catch (RequestException $ex) {
-      $ex = new APIResponseException($ex);
-      $this->logger->error('Rest request failed', $ex->toLogContext());
-      throw $ex;
-    }
+    return $this->sendHttp('GET', $url, $authorizationHeader);
   }
 
 
@@ -101,12 +87,7 @@ class Client
    */
   public function post($url, $payload = null, $authorizationHeader = null)
   {
-    $options = ['headers' => ['Accept' => 'application/json']];
-    if ($authorizationHeader) {
-      $options['headers']['Authorization'] = $authorizationHeader;
-    } else if ($this->authorizationHeader) {
-      $options['headers']['Authorization'] = $this->authorizationHeader;
-    }
+    $options = $this->getRequestOptions($authorizationHeader);
 
     if (isset($payload) && is_array($payload)) {
       $options['json'] = $payload;
@@ -114,16 +95,7 @@ class Client
 
     $options['timeout'] = 0;
 
-    try {
-      $response = $this->httpClient->post($url, $options);
-      $hal = new HALResponse($response);
-      $this->logger->debug('REST POST', (new APIResponse($response))->toLogContext());
-      return $hal;
-    } catch (RequestException $ex) {
-      $ex = new APIResponseException($ex);
-      $this->logger->error('Rest request failed', $ex->toLogContext());
-      throw $ex;
-    }
+    return $this->sendHttp('POST', $url, $options);
   }
 
 
@@ -131,36 +103,46 @@ class Client
    * Send a PUT request to $url
    *
    * @param string $url request url
-   * @param array  $payload optional, send payload as json
+   * @param array  $payload send payload as json
    * @param string $authorizationHeader optional, authorizationHeader
    * @return HALResponse
    * @throws APIResponseException
    */
-  public function put($url, $payload = null, $authorizationHeader = null)
+  public function put($url, $payload, $authorizationHeader = null)
   {
-    $options = ['headers' => ['Accept' => 'application/json']];
-    if ($authorizationHeader) {
-      $options['headers']['Authorization'] = $authorizationHeader;
-    } else if ($this->authorizationHeader) {
-      $options['headers']['Authorization'] = $this->authorizationHeader;
-    }
+    $options = $this->getRequestOptions($authorizationHeader);
 
     if (isset($payload) && is_array($payload)) {
       $options['json'] = $payload;
+    } else {
+      throw new InvalidArgumentException('Invalid $payload argument supplied. Hash array expected');
     }
 
-    try {
-      $response = $this->httpClient->put($url, $options);
-      $hal = new HALResponse($response);
-      $this->logger->debug('REST PUT', (new APIResponse($response))->toLogContext());
-      return $hal;
-    } catch (RequestException $ex) {
-      $ex = new APIResponseException($ex);
-      $this->logger->error('Rest request failed', $ex->toLogContext());
-      throw $ex;
-    }
+    return $this->sendHttp('PUT', $url, $options);
   }
 
+
+  /**
+   * Send a PATCH request to $url
+   *
+   * @param string $url request url
+   * @param array  $payload send payload as json
+   * @param string $authorizationHeader optional, authorizationHeader
+   * @return HALResponse
+   * @throws APIResponseException
+   */
+  public function patch($url, $payload, $authorizationHeader = null)
+  {
+    $options = $this->getRequestOptions($authorizationHeader);
+
+    if (isset($payload) && is_array($payload)) {
+      $options['json'] = $payload;
+    } else {
+      throw new InvalidArgumentException('Invalid $payload argument supplied. Hash array expected');
+    }
+
+    return $this->sendHttp('PATCH', $url, $options);
+  }
 
   /**
    * Send a DELETE request to $url
@@ -172,20 +154,61 @@ class Client
    */
   public function delete($url, $authorizationHeader = null)
   {
+    return $this->sendHttp('DELETE', $url, $authorizationHeader);
+  }
+
+
+  /**
+   * Wrapper for GuzzleHttp\Client::request()
+   * 
+   * @param string $method HTTP request method
+   * @param string $url The request url
+   * @param array|string $optionsOrAuthorization Hash array with request options like `headers` and `json` payload or authorization header value
+   * @return HALResponse|bool
+   * @throws APIResponseException
+   */
+  protected function sendHttp($method, $url, $optionsOrAuthorization = null)
+  {
+    if (is_array($optionsOrAuthorization)) {
+      $options = $optionsOrAuthorization;
+    } else {
+      $options = $this->getRequestOptions($optionsOrAuthorization);
+    }
+
+    try {
+      $response = $this->httpClient->request($method, $url, $options);
+      $this->logger->debug('REST ' . $method, (new APIResponse($response))->toLogContext());
+
+      // return boolean value for DELETE requests
+      if ($method === 'DELETE') {
+        return $response->getStatusCode() >= 200 && $response->getStatusCode() < 299;
+      }
+
+      // parse response into a HAL response
+      return new HALResponse($response);
+    } catch (RequestException $ex) {
+      $ex = new APIResponseException($ex);
+      $this->logger->error("REST ${method} request failed", $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Helper method to compose HTTP request headers
+   *
+   * @param string $authorizationHeader
+   * @return array
+   */
+  protected function getRequestOptions($authorizationHeader = null)
+  {
     $options = ['headers' => ['Accept' => 'application/json']];
-    if ($authorizationHeader) {
+    if (!empty($authorizationHeader)) {
       $options['headers']['Authorization'] = $authorizationHeader;
     } else if ($this->authorizationHeader) {
       $options['headers']['Authorization'] = $this->authorizationHeader;
     }
-    try {
-      $response = $this->httpClient->delete($url, $options);
-      $this->logger->debug('REST DELETE', (new APIResponse($response))->toLogContext());
-      return $response->getStatusCode() >= 200 && $response->getStatusCode() < 299;
-    } catch (RequestException $ex) {
-      $ex = new APIResponseException($ex);
-      $this->logger->error('Rest request failed', $ex->toLogContext());
-      throw $ex;
-    }
+
+    return $options;
   }
 }

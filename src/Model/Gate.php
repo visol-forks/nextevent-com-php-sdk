@@ -39,7 +39,7 @@ class Gate extends Model
 
   /**
    * @inheritdoc
-   * @param NextEvent\PHPSDK\Rest\Client $restClient
+   * @param \NextEvent\PHPSDK\Rest\Client $restClient
    */
   public function __construct($source, $restClient)
   {
@@ -69,6 +69,28 @@ class Gate extends Model
   public function getId()
   {
     return $this->source['gate_id'];
+  }
+
+
+  /**
+   * Get the creation data of this gate
+   *
+   * @return DateTime|null
+   */
+  public function getCreatedDate()
+  {
+    return isset($this->source['created']) ? DateTime::fromJson($this->source['created']) : null;
+  }
+
+
+  /**
+   * Get the changed date of this gate
+   *
+   * @return DateTime|null
+   */
+  public function getChangedDate()
+  {
+    return isset($this->source['changed']) ? DateTime::fromJson($this->source['changed']) : null;
   }
 
 
@@ -170,7 +192,7 @@ class Gate extends Model
   /**
    * Gate the gate which has been replaced by this gate
    *
-   * @return NextEvent\PHPSDK\Rest\Gate
+   * @return Gate
    */
   public function getReplacedGate()
   {
@@ -198,7 +220,7 @@ class Gate extends Model
   /**
    * Get the gate which replaces this gate.
    *
-   * @return NextEvent\PHPSDK\Rest\Gate
+   * @return Gate
    */
   public function getReplacedBy()
   {

@@ -101,13 +101,9 @@ class IAMClient
     } else if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
       $httpClientDefaults['headers']['Accept-Language'] = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
     }
+    $httpClientDefaults['base_uri'] = Env::getVar('iam_service_url');
 
-    $this->httpClient = new HTTPClient(
-      [
-        'base_url' => Env::getVar('iam_service_url'),
-        'defaults' => $httpClientDefaults
-      ]
-    );
+    $this->httpClient = new HTTPClient($httpClientDefaults);
   }
 
   /**
@@ -141,7 +137,7 @@ class IAMClient
 
     // request new token
     $options = [
-      'body' => [
+      'form_params' => [
         'grant_type' => 'client_credentials',
         'scope' => $this->iamScope
       ],

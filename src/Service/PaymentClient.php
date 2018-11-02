@@ -61,7 +61,7 @@ class PaymentClient
 
     $this->httpClient = new HTTPClient(
       [
-        'base_url' => Env::getVar('payment_service_url'),
+        'base_uri' => Env::getVar('payment_service_url'),
         'defaults' => $httpClientDefaults
       ]
     );

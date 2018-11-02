@@ -39,7 +39,7 @@ class Order extends Model
    * Order constructor
    *
    * @param array $source
-   * @param NextEvent\PHPSDK\Rest\Client|null $restClient Rest client reference for fetching base prices.
+   * @param \NextEvent\PHPSDK\Rest\Client|null $restClient Rest client reference for fetching base prices.
    */
   public function __construct(array $source, $restClient = null)
   {
@@ -209,6 +209,19 @@ class Order extends Model
   public function getCurrency()
   {
     return isset($this->source['currency']) ? $this->source['currency'] : null;
+  }
+
+
+  /**
+   * Getter for the orders's expiration date
+   *
+   * Can be null if the orders has no specific expiration date
+   *
+   * @return DateTime|null
+   */
+  public function getExpires()
+  {
+    return isset($this->source['expires']) ? DateTime::fromJson($this->source['expires']) : null;
   }
 
 

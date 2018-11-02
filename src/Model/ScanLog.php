@@ -76,6 +76,17 @@ class ScanLog extends Model
 
 
   /**
+   * Get the creation data of this scan log
+   *
+   * @return DateTime|null
+   */
+  public function getCreatedDate()
+  {
+    return isset($this->source['created']) ? DateTime::fromJson($this->source['created']) : null;
+  }
+
+
+  /**
    * Get the code, i.e barcode, for this scan log
    *
    * @return string

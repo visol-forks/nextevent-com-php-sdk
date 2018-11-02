@@ -139,7 +139,7 @@ class Collection implements Iterator, Countable, ArrayAccess
    * @param string $modelClass The class of the models in this collection.
    * @param array $instanceArgs Additional instance arguments to pass to the model constructor.
    * @param array $data Optional response data to initialize the collection with.
-   * @param NextEvent\PHPSDK\Rest\Client $restClient Rest client for fetching next pages.
+   * @param \NextEvent\PHPSDK\Rest\Client $restClient Rest client for fetching next pages.
    */
   public function __construct($modelClass, $instanceArgs = null, $data = null, $restClient = null)
   {
@@ -299,7 +299,7 @@ class Collection implements Iterator, Countable, ArrayAccess
   /**
    * Fetches the next page, if it is set and updates the data.
    *
-   * @throws NextEvent\PHPSDK\Exception\CollectionException If no rest client has been set.
+   * @throws CollectionException If no rest client has been set.
    * @return bool Whether the next page has been fetched or not. `false` means, we have no next page to fetch.
    */
   public function fetchNextPage()
@@ -351,7 +351,7 @@ class Collection implements Iterator, Countable, ArrayAccess
    *
    * @param mixed $offset The offset to set the value at.
    * @param mixed $value The value to set.
-   * @throws NextEvent\PHPSDK\Exception\CollectionException If the value is not an instance of the current model class.
+   * @throws CollectionException If the value is not an instance of the current model class.
    * @return void
    */
   public function offsetSet($offset, $value)
@@ -503,7 +503,7 @@ class Collection implements Iterator, Countable, ArrayAccess
    * Filters this collection with the given callback.
    *
    * @param callable $callback
-   * @return NextEvent\PHPSDK\Model\Collection A new collection instance with the filtered content.
+   * @return Collection A new collection instance with the filtered content.
    */
   public function filter($callback)
   {

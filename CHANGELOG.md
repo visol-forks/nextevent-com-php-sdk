@@ -2,6 +2,44 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.3.0
+
+* Dependencies:
+  * Updated Guzzle to 6.3.3
+  * PHP >= 5.5.0
+
+* New/Changed Classes
+  * `AccessCodeCollection` contains only access codes and is able to update multiple access codes with one request.
+  * `Util\Query` should now be used to set up filters and other query parameters.
+  * `Utils\Filter` use instances of this class for filtering via the API.
+  * `Model\Order` now has a `getExpires()` method like the `Basket` model does.
+
+* Changes in the client
+  * `getAccessCodes($query)` returns now `AccessCodeCollection` instead of `Collection`.
+  * `authorizeOrder()` accepts a second argument `$options` with key `ttl` to define the expiration time of the payment authorization
+  * `updateBasketExpiration($orderId, $exp)` allows changing the basket expiration time.
+  * `getOrCreateDevice` has been added to provide an easy to use initialization for devices.
+
+* Added new methods for invalidating access codes
+  * `Device::login($gate)` and `Device::logout()`
+  * `AccessCode::setEntryState($device)`
+  * `AccessCodeCollection::setEntryState($device)`
+
+## 1.2.1
+
+* Added new methods to get created and changed dates of the following entities:
+  * `Event::getCreatedDate()` and `Event::getChangedDate()`
+  * `BaseCategory::getCreatedDate()` and `BaseCategory::getChangedDate()`
+  * `BasePrice::getCreatedDate()` and `BasePrice::getChangedDate()`
+  * `Category::getCreatedDate()` and `Category::getChangedDate()`
+  * `Price::getCreatedDate()` and `Price::getChangedDate()`
+  * `AccessCode::getCreatedDate()` and `AccessCode::getChangedDate()`
+  * `ScanLog::getCreatedDate()` and `ScanLog::getChangedDate()`
+  * `Device::getCreatedDate()` and `Device::getChangedDate()`
+  * `Gate::getCreatedDate()` and `Gate::getChangedDate()`
+
+* Added missing filter options in doc.
+
 ## 1.2.0
 
 * Bug fixes

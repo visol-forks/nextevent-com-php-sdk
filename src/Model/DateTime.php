@@ -51,6 +51,17 @@ class DateTime extends \DateTime
 
 
   /**
+   * The __toString method for this class.
+   *
+   * @return string
+   */
+  public function __toString()
+  {
+    return $this->dateOnly ? $this->format('Y-m-d') : $this->format(DATE_ATOM);
+  }
+
+
+  /**
    * Parse ISO8601 string to DateTime object and make sure that it is in
    * the same timezone as used by the server.
    *

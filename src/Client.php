@@ -6,6 +6,7 @@ use GuzzleHttp\Client as HTTPClient;
 use NextEvent\PHPSDK\Exception\AccessCodesNotFoundException;
 use NextEvent\PHPSDK\Exception\APIResponseException;
 use NextEvent\PHPSDK\Exception\BasketEmptyException;
+use NextEvent\PHPSDK\Exception\DeviceException;
 use NextEvent\PHPSDK\Exception\DeviceNotFoundException;
 use NextEvent\PHPSDK\Exception\InvalidArgumentException;
 use NextEvent\PHPSDK\Exception\InvalidModelDataException;
@@ -18,6 +19,7 @@ use NextEvent\PHPSDK\Exception\OrderItemNotFoundException;
 use NextEvent\PHPSDK\Exception\OrderNotFoundException;
 use NextEvent\PHPSDK\Exception\ScanLogsNotFoundException;
 use NextEvent\PHPSDK\Model\AccessCode;
+use NextEvent\PHPSDK\Model\AccessCodeCollection;
 use NextEvent\PHPSDK\Model\BaseCategory;
 use NextEvent\PHPSDK\Model\BasePrice;
 use NextEvent\PHPSDK\Model\Gate;
@@ -40,9 +42,11 @@ use NextEvent\PHPSDK\Store\OpcacheStore;
 use NextEvent\PHPSDK\Store\StoreInterface;
 use NextEvent\PHPSDK\Util\Env;
 use NextEvent\PHPSDK\Util\Filter;
+use NextEvent\PHPSDK\Util\Query;
 use NextEvent\PHPSDK\Util\Log\Logger;
 use NextEvent\PHPSDK\Util\Widget;
 use Psr\Log\LoggerInterface;
+use \DateTime;
 
 /**
  * SDK Client - main class
@@ -74,19 +78,19 @@ use Psr\Log\LoggerInterface;
  *
  * ### Entrance check information
  *
- * 1. <code>getAccessCodes($filter)</code> get a collection of AccessCodes
+ * 1. <code>getAccessCodes($query)</code> get a collection of AccessCodes
  * 2. <code>getGate($gateId)</code> get a Gate
- * 3. <code>getGates($filter)</code> get a collection Gates
+ * 3. <code>getGates($query)</code> get a collection Gates
  * 4. <code>getDevice($deviceId)</code> get a Device
- * 5. <code>getDevices($filter)</code> get a collection of Devices
- * 6. <code>getScanLogs($filter)</code> get a collection of ScanLogs
+ * 5. <code>getDevices($query)</code> get a collection of Devices
+ * 6. <code>getScanLogs($query)</code> get a collection of ScanLogs
  *
  * ### Price and category information
  *
- * 1. <code>getBaseCategories($filter)</code> get a collection of BaseCategories
- * 2. <code>getCategories($filter)</code> get a collection of Categories
- * 3. <code>getBasePrices($filter)</code> get a collection of BasePrices
- * 4. <code>getPrices($filter)</code> get a collection of Prices
+ * 1. <code>getBaseCategories($query)</code> get a collection of BaseCategories
+ * 2. <code>getCategories($query)</code> get a collection of Categories
+ * 3. <code>getBasePrices($query)</code> get a collection of BasePrices
+ * 4. <code>getPrices($query)</code> get a collection of Prices
  *
  * ### Persistance
  *
@@ -189,7 +193,7 @@ class Client
     $this->options = $options;
 
     // generate version from options
-    $omitKeys = ['logger' => null, 'cache' => null];
+    $omitKeys = ['logger' => null, 'cache' => null, 'handler' => null];
     $optionsVersion = hash('crc32', serialize(array_diff_key($options, $omitKeys)));
 
     // initialize Cache and Logger
@@ -221,7 +225,9 @@ class Client
     // initialize httpClients
     $httpClientDefaults = [
       'timeout' => 10,
-      'headers' => []
+      'headers' => [],
+      'base_uri' => $this->options['appUrl'],
+      'handler' => isset($this->options['handler']) ? $this->options['handler'] : null,
     ];
 
     // reflect user language in SDK requests
@@ -230,14 +236,31 @@ class Client
     } else if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
       $httpClientDefaults['headers']['Accept-Language'] = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
     }
-    $this->httpClient = new HTTPClient(
-      [
-        'base_url' => $this->options['appUrl'],
-        'defaults' => $httpClientDefaults
-      ]
-    );
+    $this->httpClient = new HTTPClient($httpClientDefaults);
     $this->paymentClient = new PaymentClient($this->logger);
     $this->restClient = new RESTClient($this->httpClient, $this->logger);
+  }
+
+
+  /**
+   * Getter for the app id.
+   *
+   * @return string
+   */
+  public function getAppId()
+  {
+    return $this->options['appId'];
+  }
+
+
+  /**
+   * Getter for the auth user name.
+   *
+   * @return string
+   */
+  public function getAuthUsername()
+  {
+    return $this->options['authUsername'];
   }
 
 
@@ -367,6 +390,8 @@ class Client
           return $this->restClient->post($url, $options);
         case 'put':
           return $this->restClient->put($url, $options);
+        case 'patch':
+          return $this->restClient->patch($url, $options);
         case 'delete':
           return $this->restClient->delete($url);
         default:
@@ -386,13 +411,29 @@ class Client
   /**
    * Fetch all Events available
    *
-   * @return Event[]
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`
+   *                        * `order` = 'asc|desc' orders by event ids<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `event_id` operators: `in|!in`
+   *                        * `created` operators: `=|!=|>|>=|<|<=`
+   *                        * `changed` operators: `=|!=|>|>=|<|<=`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
    * @throws APIResponseException
    */
-  public function getEvents()
+  public function getEvents($query = null)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/jsonld/event');
+      $path = '/jsonld/event';
+      if ($query) {
+        $path .= '?' . Query::toString($query);
+      }
+      $response = $this->authenticatedRequest('get', $path);
       $events = $response->getEmbedded()['itemListElement'];
       $this->logger->debug('Fetched events', ['count' => count($events)]);
       $data = array(
@@ -441,7 +482,7 @@ class Client
 
   /**
    * Persists, i.e. creates, the new given event.
-   * Make sure your created the event with {@link NextEvent\PHPSDK\Model\Event::spawn()}.
+   * Make sure your created the event with {@link Event::spawn()}.
    *
    * On success the new event identifier will be stored in the given instance.
    *
@@ -538,10 +579,43 @@ class Client
   {
     $this->logger->info('Delete basket item', ['orderId' => $orderId, 'orderItemId' => $orderItemId]);
     try {
-    return $this->authenticatedRequest('delete', '/basket/' . $orderId . '/item/' . $orderItemId);
+      return $this->authenticatedRequest('delete', '/basket/' . $orderId . '/item/' . $orderItemId);
     } catch (APIResponseException $ex) {
       if ($ex->getCode() === 404) {
         throw new OrderItemNotFoundException('Order/Basket item not found for deletion', $ex->getCode(), $ex);
+      } else {
+        throw $ex;
+      }
+    }
+  }
+
+
+  /**
+   * Extend the expiration time of a basket
+   *
+   * @param int $orderId
+   * @param DateTime|int $expires New expiration date/time or number of minutes to extend expiration for
+   * @return bool successfully updated
+   * @throws APIResponseException
+   * @throws OrderNotFoundException if basket could not be found
+   */
+  public function updateBasketExpiration($orderId, $expires)
+  {
+    $this->logger->info('Update basket expiration', ['orderId' => $orderId, 'expires' => $expires]);
+    try {
+      $data = [];
+      if ($expires instanceof DateTime && $expires > new DateTime()) {
+        $data['expires'] = $expires->format(DATE_ATOM);
+      } else if (is_numeric($expires) && $expires > 0) {
+        $data['ttl'] = intval($expires);
+      } else {
+        throw new InvalidArgumentException('Invalid value for $expires. DateTime or positive integer expected');
+      }
+
+      return $this->authenticatedRequest('patch', '/order/' . $orderId, $data);
+    } catch (APIResponseException $ex) {
+      if ($ex->getCode() === 404) {
+        throw new OrderNotFoundException('Order/Basket not found', $ex->getCode(), $ex);
       } else {
         throw $ex;
       }
@@ -558,21 +632,24 @@ class Client
    * application processes payment.
    *
    * @param int $orderId The order ID
+   * @param array $options Hash array with options to send with the authorization request:
+   *    `ttl`: Set expiration time of the payment process to N minutes from now
    * @return Payment Payment authorization data used for settlement
    * @throws APIResponseException
    * @throws InvalidModelDataException if authorization was valid but not the returned data
    * @throws OrderNotFoundException
    */
-  public function authorizeOrder($orderId)
+  public function authorizeOrder($orderId, $options = [])
   {
-    $this->logger->debug('Authorize Order', ['orderId' => $orderId]);
-    $options = [
-      'headers' => [
-        'Authorization' => $this->iamClient->getToken()->getAuthorizationHeader(),
-        'Accept' => 'application/json'
-      ],
-      'timeout' => 20 // may take longer than 5 seconds
-    ];
+    $this->logger->debug('Authorize Order', ['orderId' => $orderId] + $options);
+
+    // validate $options
+    foreach ($options as $key => $val) {
+      if (!in_array($key, ['ttl'])) {
+        throw new InvalidArgumentException('Invalid option ' . $key . ' supplied');
+      }
+    }
+
     try {
       $response = $this->authenticatedRequest('post', '/checkout/' . $orderId, $options);
       $this->logger->info('Order authorized', ['orderId' => $orderId]);
@@ -593,7 +670,7 @@ class Client
 
   /**
    * Settle payment
-   * 
+   *
    * This confirms a previously obtained payment authorization and
    * completes the NextEvent order. The tickets will be finally booked
    * for the supplied customer and will be issued afterwards.
@@ -665,7 +742,7 @@ class Client
       $response = $this->authenticatedRequest('post', '/payment/token');
       $this->logger->info('Fetched PaymentToken from API', $response->toLogContext());
 
-      $data = $response->getResponse()->json();
+      $data = json_decode($response->getResponse()->getBody()->getContents(), true);
       $paymentToken = new Token(
         $data['access_token'], $data['expires_in'], $data['scope'], $data['token_type']
       );
@@ -810,21 +887,25 @@ class Client
 
 
   /**
-   * Fetches (completed) orders using the given filter.
+   * Fetches (completed) orders using the given query.
    *
-   * @param array $filter A list of filters, supported by the API.
-   *                      Supported filters are:
-   *                        * `state` = ['reservation','completed','replaced','cancelled','aborted']
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
    *                        * `page_size`
-   *                        * `order` = 'asc|desc'
-   * @see NextEvent\PHPSDK\Util\Filter
-   * @return NextEvent\PHPSDK\Model\Collection
+   *                        * `order` = 'asc|desc' orders by order ids<br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `state` = ['reservation','completed','replaced','cancelled','aborted'] operators: `in`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
    */
-  public function getOrders($filter)
+  public function getOrders($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/order?' . Filter::toString($filter));
-      $this->logger->debug('Orders fetched', ['filter' => $filter, 'result' => $response->getContent()]);
+      $response = $this->authenticatedRequest('get', '/order?' . Query::toString($query));
+      $this->logger->debug('Orders fetched', ['query' => $query, 'result' => $response->getContent()]);
       return new Collection('NextEvent\PHPSDK\Model\Order', array($this->restClient), $response->getContent(), $this->restClient);
     } catch (APIResponseException $ex) {
       $this->logger->error('Failed fetching orders', $ex->toLogContext());
@@ -911,7 +992,7 @@ class Client
    * and finally cancels the given order in the NextEvent system which will
    * invalidate all tickets and deny access for entrance checks.
    *
-   * @param CancellationRequest $request Cancellation authorization obtained from `requestCancellation()` 
+   * @param CancellationRequest $request Cancellation authorization obtained from `requestCancellation()`
    * @param string $reason Optional message describing the reason why this order was cancelled
    * @return void
    * @throws OrderNotFoundException
@@ -958,54 +1039,83 @@ class Client
 
 
   /**
-   * Fetches all access codes for the given filter.
+   * Fetches all access codes for the given query.
    *
-   * @param array $filter A list of filters, supported by the API.
-   *                      Supported filter are:
-   *                        * `code`
-   *                        * `category_id`
-   *                        * `price_id`
-   *                        * `access_code_id`
-   * @see NextEvent\PHPSDK\Util\Filter
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `access_code_id` operators: `in|!in`
+   *                        * `code` operators: `=|!=|in|!in`
+   *                        * `category_id` operators: `=|!=|in|!in`
+   *                        * `price_id` operators: `=|!=|in|!in`
+   *                        * `created` operators: `=|!=|>|>=|<|<=`
+   *                        * `changed` operators: `=|!=|>|>=|<|<=`
+   *                        * `processed` operators: `=|!=|>|>=|<|<=`
+   *                        * `gate_id` operators: `=|!=|in|!in`
+   *                        * `device_id` operators: `=|!=|in|!in`
+   *                        * `state` = 'valid|cancelled|external' operators: `=|!=|in|!in`
+   *                        * `entry_state` = 'in|out|null' operators: `=|!=|is|!is|in|!in`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return AccessCodeCollection
    */
-  public function getAccessCodes($filter)
+  public function getAccessCodes($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/access_code?' . Filter::toString($filter));
-      $this->logger->debug('Access codes fetched', ['filter' => $filter]);
+      $response = $this->authenticatedRequest('get', '/access_code?' . Query::toString($query));
+      $this->logger->debug('Access codes fetched', ['query' => $query]);
       $codes = $response->getContent();
-      return new Collection('NextEvent\PHPSDK\Model\AccessCode', array(), $codes, $this->restClient);
+      return new AccessCodeCollection($codes, $this->restClient);
     } catch (APIResponseException $ex) {
       if ($ex->getCode() !== 404) {
         throw $ex;
       }
-      $this->logger->error('Access codes not found', array_merge(['filter' => $filter], $ex->toLogContext()));
+      $this->logger->error('Access codes not found', array_merge(['query' => $query], $ex->toLogContext()));
       throw new AccessCodesNotFoundException('Access codes not found', $ex->getCode(), $ex);
     }
   }
 
 
   /**
-   * Fetches all scan logs for the given filter.
+   * Fetches all scan logs for the given query.
    *
-   * @param array $filter A list of filters, supported by the API.
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
    *                      Only `code` is supported for now.
-   * @see NextEvent\PHPSDK\Util\Filter
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `scan_log_id` operators: `in|!in`
+   *                        * `code` operators: `=|!=|in|!in`
+   *                        * `category_id` operators: `=|!=|in|!in`
+   *                        * `price_id` operators: `=|!=|in|!in`
+   *                        * `created` operators: `=|!=|>|>=|<|<=`
+   *                        * `processed` operators: `=|!=|>|>=|<|<=`
+   *                        * `gate_id` operators: `=|!=|in|!in`
+   *                        * `device_id` operators: `=|!=|in|!in`
+   *                        * `entry_state` = 'in|out' operators: `=|!=|in|!in`
+   *                        * `connection` operators: `=|!=|in|!in`
+   *                        * `verification` operators: `=|!=|in|!in`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
    * @return array A collection of NextEvent\PHPSDK\Model\ScanLog
    */
-  public function getScanLogs($filter)
+  public function getScanLogs($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/scan_log?' . Filter::toString($filter));
-      $this->logger->debug('Scan logs fetched', ['filter' => $filter]);
+      $response = $this->authenticatedRequest('get', '/scan_log?' . Query::toString($query));
+      $this->logger->debug('Scan logs fetched', ['query' => $query]);
       $logs = $response->getContent();
       return new Collection('NextEvent\PHPSDK\Model\ScanLog', array(), $logs, $this->restClient);
     } catch (APIResponseException $ex) {
       if ($ex->getCode() !== 404) {
         throw $ex;
       }
-      $this->logger->error('Scan logs not found', array_merge(['filter' => $filter], $ex->toLogContext()));
+      $this->logger->error('Scan logs not found', array_merge(['query' => $query], $ex->toLogContext()));
       throw new ScanLogsNotFoundException('Scan logs not found', $ex->getCode(), $ex);
     }
   }
@@ -1015,7 +1125,7 @@ class Client
    * Fetches the gate for the given gate identifier.
    *
    * @param int $gateId
-   * @return NextEvent\PHPSDK\Model\Gate
+   * @return Gate
    */
   public function getGate($gateId)
   {
@@ -1034,20 +1144,29 @@ class Client
 
 
   /**
-   * Fetches all gates for the given filter.
+   * Fetches all gates for the given query.
    *
-   * @param array $filter A list of filters, supported by the API.
-   *                      Supported filters are:
-   *                        * `gate_id`
-   *                        * `hash`
-   * @see NextEvent\PHPSDK\Util\Filter
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `gate_id` operators: `in|!in`
+   *                        * `hash` operators: `=|!=|in|!in`
+   *                        * `created` operators: `=|!=|>|>=|<|<=`
+   *                        * `changed` operators: `=|!=|>|>=|<|<=`
+   *                        * `mode` = 'in|out|both' operators: `=|!=|in|!in`
+   *                        * `replaced_gate_id` operators: `=|!=|in|!in`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
    */
-  public function getGates($filter)
+  public function getGates($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/gate?' . Filter::toString($filter));
-      $this->logger->debug('Gates fetched', ['filter' => $filter]);
+      $response = $this->authenticatedRequest('get', '/gate?' . Query::toString($query));
+      $this->logger->debug('Gates fetched', ['query' => $query]);
       $gates = $response->getContent();
       return new Collection('NextEvent\PHPSDK\Model\Gate', array($this->restClient), $gates, $this->restClient);
     } catch (APIResponseException $ex) {
@@ -1061,14 +1180,14 @@ class Client
    * Fetches the device for the given device identifier.
    *
    * @param int $deviceId
-   * @return NextEvent\PHPSDK\Model\Device
+   * @return Device
    */
   public function getDevice($deviceId)
   {
     try {
       $response = $this->authenticatedRequest('get', '/device/' . $deviceId);
       $this->logger->debug('Device fetched', ['deviceId' => $deviceId]);
-      return new Device($response->getEmbedded());
+      return new Device($response->getEmbedded(), $this->getRestClient(), $this->getCache());
     } catch (APIResponseException $ex) {
       if ($ex->getCode() !== 404) {
         throw $ex;
@@ -1080,23 +1199,34 @@ class Client
 
 
   /**
-   * Fetches all devices for the given filter.
+   * Fetches all devices for the given query.
    *
-   * @param array $filter A list of filters, supported by the API.
-   *                      Supported filters are:
-   *                      * `device_id`
-   *                      * `uuid`
-   *                      * `gate_id`
-   * @see NextEvent\PHPSDK\Util\Filter
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                      * `device_id` operators: `in|!in`
+   *                      * `uuid` operators: `=|!=|in|!in`
+   *                      * `gate_id` operators: `=|!=|in|!in`
+   *                      * `created` operators: `=|!=|>|>=|<|<=`
+   *                      * `changed` operators: `=|!=|>|>=|<|<=`
+   *                      * `platform` operators: `=|!=|in|!in`
+   *                      * `version` operators: `=|!=|in|!in`
+   *                      * `last_login` operators: `=|!=|is|!is|>|>=|<|<=`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
    */
-  public function getDevices($filter)
+  public function getDevices($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/device?' . Filter::toString($filter));
-      $this->logger->debug('Devices fetched', ['filter' => $filter]);
+      $response = $this->authenticatedRequest('get', '/device?' . Query::toString($query));
+      $this->logger->debug('Devices fetched', ['query' => $query]);
       $devices = $response->getContent();
-      return new Collection('NextEvent\PHPSDK\Model\Device', array(), $devices, $this->restClient);
+      $instanceArgs = array($this->getRestClient(), $this->getCache());
+      return new Collection('NextEvent\PHPSDK\Model\Device', $instanceArgs, $devices, $this->restClient);
     } catch (APIResponseException $ex) {
       $this->logger->error('Failed fetching devices', $ex->toLogContext());
       throw $ex;
@@ -1105,20 +1235,69 @@ class Client
 
 
   /**
-   * Fetches all base categories for the given filter.
+   * Retrieves a device by the given name and stores it in the cache.
    *
-   * @param array $filter A list of filters, supported by the API.
-   *                      Supported filters are:
-   *                        * `base_category_id`
-   *                        * `event_id`
-   * @see NextEvent\PHPSDK\Util\Filter
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @param string $name The argument is optional. By default the client's appId will be used if omitted.
+   * @throws DeviceException If there are multiple devices with the same name.
+   * @return void
    */
-  public function getBaseCategories($filter)
+  public function getOrCreateDevice($name = null)
+  {
+    if (!isset($name)) {
+      $name = $this->getAuthUsername();
+    }
+    $cache = $this->getCache();
+    $uuid = 'php-sdk-device-' . md5($name);
+    $found = $cache->get($uuid);
+    $device = null;
+    if ($found) {
+      $device = new Device(array(), $this->getRestClient(), $this->getCache());
+      $device->unserialize($found);
+      return $device;
+    }
+    $query = new Query();
+    $query->addFilter(new Filter('uuid', $uuid, '='));
+    $devices = $this->getDevices($query);
+    if ($devices->count() <= 0) {
+      $device = new Device(array(
+        'uuid' => $uuid,
+        'name' => $name,
+        'platform' => 'PHP SDK',
+        'version' => '1.3.0',
+      ), $this->getRestClient(), $this->getCache());
+    } else {
+      if ($devices->count() > 1) {
+        throw new DeviceException('There are multiple devices with the uuid "' . $uuid . '"!');
+      }
+      $device = $devices[0];
+    }
+    $cache->set($uuid, $device->toString());
+    return $device;
+  }
+
+
+  /**
+   * Fetches all base categories for the given query.
+   *
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `base_category_id` operators: `in|!in`
+   *                        * `event_id` operators: `in|!in`
+   *                        * `created` operators: `=|!=|>|>=|<|<=`
+   *                        * `changed` operators: `=|!=|>|>=|<|<=`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
+   */
+  public function getBaseCategories($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/base_category?' . Filter::toString($filter));
-      $this->logger->debug('BaseCategories fetched', ['filter' => $filter]);
+      $response = $this->authenticatedRequest('get', '/base_category?' . Query::toString($query));
+      $this->logger->debug('BaseCategories fetched', ['query' => $query]);
       $baseCategories = $response->getContent();
       return new Collection('NextEvent\PHPSDK\Model\BaseCategory', array($this->restClient), $baseCategories, $this->restClient);
     } catch (APIResponseException $ex) {
@@ -1129,21 +1308,28 @@ class Client
 
 
   /**
-   * Fetches all categories for the given filter.
+   * Fetches all categories for the given query.
    *
-   * @param array $filter A list of filters, supported by the API.
-   *                      Supported filters are:
-   *                        * `category_id`
-   *                        * `base_category_id`
-   *                        * `event_id`
-   * @see NextEvent\PHPSDK\Util\Filter
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `category_id` operators: `in|!in`
+   *                        * `base_category_id` operators: `in|!in`
+   *                        * `event_id` operators: `in|!in`
+   *                        * `created` operators: `=|!=|>|>=|<|<=`
+   *                        * `changed` operators: `=|!=|>|>=|<|<=`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
    */
-  public function getCategories($filter)
+  public function getCategories($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/category?' . Filter::toString($filter));
-      $this->logger->debug('Categories fetched', ['filter' => $filter]);
+      $response = $this->authenticatedRequest('get', '/category?' . Query::toString($query));
+      $this->logger->debug('Categories fetched', ['query' => $query]);
       $categories = $response->getContent();
       return new Collection('NextEvent\PHPSDK\Model\Category', array(), $categories, $this->restClient);
     } catch (APIResponseException $ex) {
@@ -1154,21 +1340,28 @@ class Client
 
 
   /**
-   * Fetches all base prices for the given filter.
+   * Fetches all base prices for the given query.
    *
-   * @param array $filter A list of filters, supported by the API.
-   *                      Supported filters are:
-   *                        * `base_price_id`
-   *                        * `base_category_id`
-   *                        * `event_id`
-   * @see NextEvent\PHPSDK\Util\Filter
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `base_price_id` operators: `in|!in`
+   *                        * `base_category_id` operators: `in|!in`
+   *                        * `event_id` operators: `in|!in`
+   *                        * `created` operators: `=|!=|>|>=|<|<=`
+   *                        * `changed` operators: `=|!=|>|>=|<|<=`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
    */
-  public function getBasePrices($filter)
+  public function getBasePrices($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/base_price?' . Filter::toString($filter));
-      $this->logger->debug('BasePrices fetched', ['filter' => $filter]);
+      $response = $this->authenticatedRequest('get', '/base_price?' . Query::toString($query));
+      $this->logger->debug('BasePrices fetched', ['query' => $query]);
       $basePrices = $response->getContent();
       return new Collection('NextEvent\PHPSDK\Model\BasePrice', array(), $basePrices, $this->restClient);
     } catch (APIResponseException $ex) {
@@ -1179,22 +1372,29 @@ class Client
 
 
   /**
-   * Fetches all prices for the given filter.
+   * Fetches all prices for the given query.
    *
-   * @param array $filter A list of filters, supported by the API.
-   *                      Supported filters are:
-   *                        * `price_id`
-   *                        * `category_id`
-   *                        * `base_price_id`
-   *                        * `event_id`
-   * @see NextEvent\PHPSDK\Util\Filter
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `price_id` operators: `in|!in`
+   *                        * `category_id` operators: `in|!in`
+   *                        * `base_price_id` operators: `in|!in`
+   *                        * `event_id` operators: `in|!in`
+   *                        * `created` operators: `=|!=|>|>=|<|<=`
+   *                        * `changed` operators: `=|!=|>|>=|<|<=`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
    */
-  public function getPrices($filter)
+  public function getPrices($query)
   {
     try {
-      $response = $this->authenticatedRequest('get', '/price?' . Filter::toString($filter));
-      $this->logger->debug('Prices fetched', ['filter' => $filter]);
+      $response = $this->authenticatedRequest('get', '/price?' . Query::toString($query));
+      $this->logger->debug('Prices fetched', ['query' => $query]);
       $prices = $response->getContent();
       return new Collection('NextEvent\PHPSDK\Model\Price', array(), $prices, $this->restClient);
     } catch (APIResponseException $ex) {
@@ -1208,14 +1408,13 @@ class Client
    * Creates the base category(ies) provided in the $categories argument.
    * Each base category has to hold at least one base price.
    * The attached base prices will also be created automatically.
-   * Make sure you created the base category instances with {@link NextEvent\PHPSDK\Model\BaseCategory::spawn()}.
+   * Make sure you created the base category instances with {@link BaseCategory::spawn()}.
    *
    * On success the new base category ids will be stored in the given instance(s).
    *
-   * @throws NextEvent\PHPSDK\Exception\InvalidModelDataException If a base category happens to have no price
-   * @param NextEvent\PHPSDK\Model\BaseCategory|array $categories Single or list of
-   *                                                              {@link NextEvent\PHPSDK\Model\BaseCategory}
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @throws InvalidModelDataException If a base category happens to have no price
+   * @param BaseCategory|array $categories Single or list of \NextEvent\PHPSDK\Model\BaseCategory
+   * @return Collection
    */
   public function createBaseCategory($categories)
   {
@@ -1265,7 +1464,7 @@ class Client
   /**
    * Updates the base category(ies) provided in the $categories array.
    *
-   * @param NextEvent\PHPSDK\Model\BaseCategory|array $categories Single or list of NextEvent\PHPSDK\Model\BaseCategory
+   * @param BaseCategory|array $categories Single or list of \NextEvent\PHPSDK\Model\BaseCategory
    * @return void
    */
   public function updateBaseCategory($categories)
@@ -1296,14 +1495,14 @@ class Client
 
   /**
    * Creates the base price(s) provided in the $prices argument.
-   * Make sure you created the price instances with {@link NextEvent\PHPSDK\Model\BasePrice::spawn()}.
+   * Make sure you created the price instances with {@link BasePrice::spawn()}.
    * Each provided base price have to be assigned to a base category. Otherwise an exception will be thrown.
    *
    * On success the new base price ids will be stored in the given instance(s).
    *
-   * @throws NextEvent\PHPSDK\Exception\InvalidModelDataException If a base price happens to have no assigned base category.
-   * @param NextEvent\PHPSDK\Model\BasePrice|array $prices Single or list of NextEvent\PHPSDK\Model\BasePrice
-   * @return NextEvent\PHPSDK\Model\Collection
+   * @throws InvalidModelDataException If a base price happens to have no assigned base category.
+   * @param BasePrice|array $prices Single or list of NextEvent\PHPSDK\Model\BasePrice
+   * @return Collection
    */
   public function createBasePrice($prices)
   {
@@ -1344,7 +1543,7 @@ class Client
   /**
    * Updates the base price(s) provided in the $prices array.
    *
-   * @param NextEvent\PHPSDK\Model\BasePrice|array $prices Single or list of NextEvent\PHPSDK\Model\BasePrice
+   * @param BasePrice|array $prices Single or list of BasePrice
    * @return void
    */
   public function updateBasePrice($prices)

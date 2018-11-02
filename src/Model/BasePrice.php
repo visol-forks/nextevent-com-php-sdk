@@ -87,6 +87,28 @@ class BasePrice extends MutableModel implements Spawnable
 
 
   /**
+   * Get the creation data of this base price
+   *
+   * @return DateTime|null
+   */
+  public function getCreatedDate()
+  {
+    return isset($this->source['created']) ? DateTime::fromJson($this->source['created']) : null;
+  }
+
+
+  /**
+   * Get the changed date of this base price
+   *
+   * @return DateTime|null
+   */
+  public function getChangedDate()
+  {
+    return isset($this->source['changed']) ? DateTime::fromJson($this->source['changed']) : null;
+  }
+
+
+  /**
    * Get the base category id for this base price.
    *
    * @return int
@@ -100,7 +122,7 @@ class BasePrice extends MutableModel implements Spawnable
   /**
    * Get the base category model instance for this price, if any set
    *
-   * @return NextEvent\PHPSDK\Model\BaseCategory|null
+   * @return BaseCategory|null
    */
   public function getBaseCategory()
   {
@@ -113,7 +135,7 @@ class BasePrice extends MutableModel implements Spawnable
    *
    * The base_category_id and the event_id will be applied to the data of this base price if it is a new one.
    *
-   * @param NextEvent\PHPSDK\Model\BaseCategory $baseCategory
+   * @param BaseCategory $baseCategory
    * @throws InvalidArgumentException If the given argument is not a base category.
    * @throws InvalidBaseCategoryException If the id of the given base category does not match the one of this instance.
    * @return void
@@ -244,8 +266,8 @@ class BasePrice extends MutableModel implements Spawnable
    * Use this method if you want to create a new base price and persist it via the client.
    *
    * @param array $data
-   * @param NextEvent\PHPSDK\Model\BaseCategory $baseCategory The base category reference.
-   * @return NextEvent\PHPSDK\Model\BasePrice
+   * @param BaseCategory $baseCategory The base category reference.
+   * @return BasePrice
    */
   public static function spawn($data, $baseCategory)
   {

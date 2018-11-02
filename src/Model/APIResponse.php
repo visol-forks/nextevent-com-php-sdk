@@ -2,7 +2,7 @@
 
 namespace NextEvent\PHPSDK\Model;
 
-use GuzzleHttp\Message\ResponseInterface;
+use GuzzleHttp\Psr7\Response;
 use NextEvent\PHPSDK\Exception\InvalidArgumentException;
 use NextEvent\PHPSDK\Util\Log\LogContextInterface;
 
@@ -17,7 +17,7 @@ use NextEvent\PHPSDK\Util\Log\LogContextInterface;
 class APIResponse implements LogContextInterface
 {
   /**
-   * @var ResponseInterface
+   * @var Response
    */
   protected $response;
 
@@ -37,7 +37,7 @@ class APIResponse implements LogContextInterface
    */
   public function __construct($response)
   {
-    if (!($response instanceof ResponseInterface)) {
+    if (!($response instanceof Response)) {
       throw new InvalidArgumentException('Expect a ResponseInterface as argument');
     }
 
@@ -79,7 +79,8 @@ class APIResponse implements LogContextInterface
    */
   public function getRequestID()
   {
-    return $this->response->getHeader('x-request-id');
+    $header = $this->response->getHeader('x-request-id');
+    return isset($header[0]) ? $header[0] : null;
   }
 
 
@@ -91,7 +92,7 @@ class APIResponse implements LogContextInterface
   public function toLogContext()
   {
     $context = [
-      'url' => $this->response->getEffectiveUrl(),
+      // 'url' => $this->response->getEffectiveUrl(),
       'statusCode' => $this->response->getStatusCode(),
       'requestId' => $this->getRequestID(),
     ];

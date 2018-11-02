@@ -36,6 +36,28 @@ class Price extends Model
 
 
   /**
+   * Get the creation data of this price
+   *
+   * @return DateTime|null
+   */
+  public function getCreatedDate()
+  {
+    return isset($this->source['created']) ? DateTime::fromJson($this->source['created']) : null;
+  }
+
+
+  /**
+   * Get the changed date of this price
+   *
+   * @return DateTime|null
+   */
+  public function getChangedDate()
+  {
+    return isset($this->source['changed']) ? DateTime::fromJson($this->source['changed']) : null;
+  }
+
+
+  /**
    * Get the title for this price
    *
    * @return string
