@@ -72,9 +72,10 @@ class BaseCategory extends MutableModel implements Spawnable
    */
   public function isValid()
   {
-    return (isset($this->source['base_category_id']) || $this->isNew()) &&
-            isset($this->source['title']) &&
-            isset($this->source['event_id']);
+    $source = $this->source;
+    return (isset($source['base_category_id']) || $this->isNew()) &&
+            (isset($source['title']) || isset($source['facets']['title']['value'])) &&
+            isset($source['event_id']);
   }
 
 

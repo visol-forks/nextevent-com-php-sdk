@@ -2,6 +2,10 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.3.1
+* New Classes
+  * `Model\WebhookMessage` makes usage of webhooks on the receiving server easy.
+
 ## 1.3.0
 
 * Dependencies:

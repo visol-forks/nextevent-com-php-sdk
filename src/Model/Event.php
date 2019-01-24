@@ -27,6 +27,16 @@ class Event extends MutableModel implements Spawnable
    */
   public function __construct($source)
   {
+    if (array_key_exists('event_id', $source))
+      {
+      $source['identifier'] = $source['event_id'];
+      $source['name'] = $source['title'];
+      if (!isset($source['state'])) {
+        $source['state'] = 'active';
+      }
+      unset($source['event_id']);
+      unset($source['title']);
+      }
     if (isset($source['identifier'])) {
       parent::__construct($source);
     } else {
@@ -81,8 +91,9 @@ class Event extends MutableModel implements Spawnable
    * Tells whether the event is active for sale
    * or in another pre or post sale state.
    *
-   * Possible values are: draft, active, ended, processed,
-   * cancelled, closed, pendingdebit, pendingcredit, credited, archived
+   * Possible values are: `draft`, `active`, `closed`.
+   * Note, that booking in `draft` and `closed` is only possible for admin of the event.
+   * In addition the order process can only be completed if the basket has __only__ tickets for `active` events.
    *
    * @return string
    */

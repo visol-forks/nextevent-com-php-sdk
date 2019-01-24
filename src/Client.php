@@ -421,6 +421,7 @@ class Client
    *                        * `event_id` operators: `in|!in`
    *                        * `created` operators: `=|!=|>|>=|<|<=`
    *                        * `changed` operators: `=|!=|>|>=|<|<=`
+   *                        * `state` = 'draft|active|closed' (default: 'active') operators: `=|!=|>|>=|<|<=`
    * @see Query::setPage() and
    * @see Query::setPageSize()
    * @return Collection
