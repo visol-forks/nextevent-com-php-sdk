@@ -198,6 +198,18 @@ class BaseCategory extends MutableModel implements Spawnable
     return $this->basePrices;
   }
 
+  /**
+   * Get the capacity of this base category.
+   *
+   * This value could be useless if individual capacities have been set for single categories.
+   *
+   * @return int|null
+   */
+  public function getCapacity()
+  {
+    return isset($this->source['capacity']) ? $this->source['capacity'] : null;
+  }
+
 
   /**
    * Sets the base prices for this base category.
@@ -266,4 +278,5 @@ class BaseCategory extends MutableModel implements Spawnable
     }
     return $baseCategory;
   }
+
 }

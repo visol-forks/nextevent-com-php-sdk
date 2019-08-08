@@ -117,4 +117,28 @@ class Category extends Model
   {
     return !empty($this->source['deleted']);
   }
+
+
+  /**
+   * Get the category capacity
+   *
+   * @return int|null
+   */
+  public function getCapacity()
+  {
+    return isset($this->source['capacity']) ? $this->source['capacity'] : null;
+  }
+
+
+  /**
+   * Get the currently available items
+   *
+   * Reflects the categories capacity minus all blocked and sold items
+   *
+   * @return int|null
+   */
+  public function getAvailableItems()
+  {
+    return isset($this->source['available_items']) ? $this->source['available_items'] : null;
+  }
 }

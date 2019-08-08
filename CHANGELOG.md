@@ -2,6 +2,13 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.3.2
+* Added new Capacity property to Categories because they can be set now individually on each Category
+* AvailableItems were replaced by Capacity on BaseCategories (same meaning)
+* Added new getters:
+  * `BaseCategory::getCapacity()` and `Category::getCapacity()`
+  * `Category::getAvailableItems()`
+
 ## 1.3.1
 * New Classes
   * `Model\WebhookMessage` makes usage of webhooks on the receiving server easy.
