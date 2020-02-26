@@ -21,6 +21,13 @@ use Serializable;
 abstract class Model implements LogContextInterface, Serializable
 {
   /**
+   * Mapping of JSON data keys to match the expected source structure
+   *
+   * @var array|null
+   */
+  protected $mapJson = null;
+
+  /**
    * Container for wrapped model data
    *
    * @var array
@@ -39,7 +46,13 @@ abstract class Model implements LogContextInterface, Serializable
   public function __construct($source)
   {
     $this->source = $source;
-    if (!is_array($source) || !$this->isValid()) {
+    if (!is_array($source)) {
+      throw new InvalidModelDataException('Given $source for ' . get_class($this) . ' creation is invalid');
+    }
+    if (!$this->isValid() && !empty($this->mapJson)) {
+      $this->source = self::mapSource($source, $this->mapJson);
+    }
+    if (!$this->isValid()) {
       throw new InvalidModelDataException('Given $source for ' . get_class($this) . ' creation is invalid');
     }
   }
@@ -159,5 +172,28 @@ abstract class Model implements LogContextInterface, Serializable
   public function unserialize($serialized)
   {
     $this->source = json_decode($serialized, true);
+  }
+
+  /**
+   * Apply key mapping to the given source array
+   *
+   * @param array $source Hash arry to map keys
+   * @param array $map Hash arry with key mapping (from -> to)
+   * @param boolean $merge Merge unmapped values into result
+   * @return array resulting array with mapped key -> value pairs
+   */
+  protected static function mapSource($source, $map, $merge = true)
+  {
+    $result = [];
+
+    foreach ($source as $key => $val) {
+      if (isset($map[$key])) {
+        $result[$map[$key]] = $val;
+      } else if ($merge) {
+        $result[$key] = $val;
+      }
+    }
+
+    return $result;
   }
 }

@@ -23,13 +23,13 @@ composer update
 
 # Documentation
 
-The documentation for the NextEvent PHP SDK is located [here](https://developer.nextevent.com/sdk).
+The documentation for the NextEvent PHP SDK is located [here](https://developer.nextevent.com).
 This includes a step-by-step guide how to integrate the SDK in a web application.
 
 Build the documentation with `phing apidoc`.
 
 # License
 
-Copyright (C) 2019, NextEvent AG, nextevent.com
+Copyright (C) 2020, NextEvent AG, nextevent.com
 
 Published under the [MIT License](https://opensource.org/licenses/MIT), all rights reserved.

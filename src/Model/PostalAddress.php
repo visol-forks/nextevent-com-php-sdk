@@ -13,6 +13,19 @@ namespace NextEvent\PHPSDK\Model;
 class PostalAddress extends Model
 {
   /**
+   * Mapping of JSON data keys to match the expected source structure
+   *
+   * @var array
+   */
+  protected $mapJson = [
+    'street'      => 'streetAddress',
+    'zip'         => 'postalCode',
+    'city'        => 'addressLocality',
+    'country'     => 'addressCountry',
+    'countryName' => 'addressCountry',
+  ];
+
+  /**
    * @inheritdoc
    */
   public function isValid()

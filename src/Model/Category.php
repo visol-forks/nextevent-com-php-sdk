@@ -106,6 +106,23 @@ class Category extends Model
 
 
   /**
+   * Get the date/time value of this category
+   *
+   * Please note that multiple categories can return the same date/time value.
+   * In order to get a list of event dates, check for duplicates or use array_unique().
+   *
+   * @return DateTime|null
+   */
+  public function getDate()
+  {
+    if (isset($this->source['facets']['date']['value'])) {
+      return DateTime::fromJson($this->source['facets']['date']['value']);
+    }
+
+    return null;
+  }
+
+  /**
    * Getter for the deleted flag
    *
    * Denotes that the category has been deleted and is no longer

@@ -13,6 +13,17 @@ namespace NextEvent\PHPSDK\Model;
 class Location extends Model
 {
   /**
+   * Mapping of JSON data keys to match the expected source structure
+   *
+   * @var array
+   */
+  protected $mapJson = [
+    'description' => 'name',
+    'geocode'     => 'geo',
+    'addr1'       => 'street',
+  ];
+
+  /**
    * @inheritdoc
    */
   public function isValid()
@@ -40,7 +51,8 @@ class Location extends Model
    */
   public function getAddress()
   {
-    return isset($this->source['address']) ? new PostalAddress($this->source['address']) : null;
+    return isset($this->source['address']) ? new PostalAddress($this->source['address']) :
+      (isset($this->source['street']) ? new PostalAddress($this->source) : null);
   }
 
 

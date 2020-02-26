@@ -14,6 +14,16 @@ namespace NextEvent\PHPSDK\Model;
 class GeoCoordinates extends Model
 {
   /**
+   * Mapping of JSON data keys to match the expected source structure
+   *
+   * @var array
+   */
+  protected $mapJson = [
+    'lat' => 'latitude',
+    'lng' => 'longitude',
+  ];
+
+  /**
    * @inheritdoc
    */
   public function isValid()

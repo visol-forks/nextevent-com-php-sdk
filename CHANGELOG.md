@@ -2,14 +2,31 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.3.3
+
+* Improvements
+  * Make event organizer information accessible via the `Event` model
+  * Make date/time of an event or show accessible via the `Category` model
+
+* Bug fixes
+  * Fix Event model initialization from Webhook payload
+
+* Changed Classes
+  * New method `Model\Event::getOrganizer()` returning a model class containing organizer information
+  * New method `Model\Category::getDate()` returning the date/time value of Category
+
 ## 1.3.2
-* Added new Capacity property to Categories because they can be set now individually on each Category
-* AvailableItems were replaced by Capacity on BaseCategories (same meaning)
-* Added new getters:
+
+* Improvements
+  * Added new Capacity property to Categories because they can be set now individually on each Category
+  * AvailableItems were replaced by Capacity on BaseCategories (same meaning)
+
+* Changed Classes
   * `BaseCategory::getCapacity()` and `Category::getCapacity()`
   * `Category::getAvailableItems()`
 
 ## 1.3.1
+
 * New Classes
   * `Model\WebhookMessage` makes usage of webhooks on the receiving server easy.
 

@@ -16,6 +16,22 @@ use NextEvent\PHPSDK\Exception\InvalidModelDataException;
 class Event extends MutableModel implements Spawnable
 {
   /**
+   * Mapping of JSON data keys to match the expected source structure
+   *
+   * @var array
+   */
+  protected $mapJson = [
+    'event_id'    => 'identifier',
+    'title'       => 'name',
+    'title_image' => 'image',
+    'created'     => 'createdDate',
+    'changed'     => 'changedDate',
+    'description' => 'description',
+    'location'    => 'location',
+    'organizer'   => 'organizer',
+  ];
+
+  /**
    * Internal flag for determining whether this event is new, i.e. not persisted yet.
    *
    * @var bool
@@ -27,16 +43,9 @@ class Event extends MutableModel implements Spawnable
    */
   public function __construct($source)
   {
-    if (array_key_exists('event_id', $source))
-      {
-      $source['identifier'] = $source['event_id'];
-      $source['name'] = $source['title'];
-      if (!isset($source['state'])) {
-        $source['state'] = 'active';
-      }
-      unset($source['event_id']);
-      unset($source['title']);
-      }
+    if (array_key_exists('event_id', $source)) {
+      $source = self::mapSource($source, $this->mapJson, false) + ['state' => 'active'];
+    }
     if (isset($source['identifier'])) {
       parent::__construct($source);
     } else {
@@ -159,6 +168,17 @@ class Event extends MutableModel implements Spawnable
   public function getLocation()
   {
     return isset($this->source['location']) ? new Location($this->source['location']) : null;
+  }
+
+
+  /**
+   * Get the organizer info for this event
+   *
+   * @return Organization|null
+   */
+  public function getOrganizer()
+  {
+    return isset($this->source['organizer']) ? new Organization($this->source['organizer']) : null;
   }
 
 
