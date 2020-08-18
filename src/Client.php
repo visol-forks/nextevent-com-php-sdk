@@ -18,6 +18,7 @@ use NextEvent\PHPSDK\Exception\NotAuthorizedException;
 use NextEvent\PHPSDK\Exception\OrderItemNotFoundException;
 use NextEvent\PHPSDK\Exception\OrderNotFoundException;
 use NextEvent\PHPSDK\Exception\ScanLogsNotFoundException;
+use NextEvent\PHPSDK\Exception\EntityNotFoundException;
 use NextEvent\PHPSDK\Model\AccessCode;
 use NextEvent\PHPSDK\Model\AccessCodeCollection;
 use NextEvent\PHPSDK\Model\BaseCategory;
@@ -35,6 +36,7 @@ use NextEvent\PHPSDK\Model\Price;
 use NextEvent\PHPSDK\Model\TicketDocument;
 use NextEvent\PHPSDK\Model\Token;
 use NextEvent\PHPSDK\Model\CancellationRequest;
+use NextEvent\PHPSDK\Model\DiscountCode;
 use NextEvent\PHPSDK\Rest\Client as RESTClient;
 use NextEvent\PHPSDK\Service\IAMClient;
 use NextEvent\PHPSDK\Service\PaymentClient;
@@ -1568,6 +1570,143 @@ class Client
     } catch (APIResponseException $ex) {
       $this->logger->error('Failed updating base prices', $ex->toLogContext());
       throw $ex;
+    }
+  }
+
+
+  /**
+   * Fetches all discount groups for the given query.
+   *
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`<br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `fetch_deleted` = '1|0'
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
+   */
+  public function getDiscountGroups($query)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/discount_group?' . Query::toString($query));
+      $this->logger->debug('DiscountGroups fetched', ['query' => $query]);
+      $discountGroups = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\DiscountGroup', array(), $discountGroups, $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching discount groups', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Fetches all discount codes for the given query.
+   *
+   * @param array|Query $query A query, supported by the API.
+   *                      <br><br>
+   *                      <b>Supported parameters are:</b>
+   *                        * `page`
+   *                        * `page_size`
+   *                        * `augment`= 1|0 (provides additional properties like `state` and `redeemend` count)
+   *                        * `state` = 'inactive|active|removed'
+   *                        * `search` = '[string]'
+   *                        * `fetch_deleted` = '1|0'
+   *                      <br><br>
+   *                      <b>Supported filters are:</b>
+   *                        * `discount_group_id` operators: `in|!in`
+   * @see Query::setPage() and
+   * @see Query::setPageSize()
+   * @return Collection
+   */
+  public function getDiscountCodes($query)
+  {
+    if (!($query instanceof Query)) {
+      $query = new Query($query);
+    }
+    // add augment=true quer param if filtering by `state`
+    if ($query->get('state')) {
+      $query->set('augment', 'true');
+    }
+
+    try {
+      $response = $this->authenticatedRequest('get', '/discount_code?' . Query::toString($query));
+      $this->logger->debug('DiscountCodes fetched', ['query' => $query->toArray()]);
+      $discountCodes = $response->getContent();
+      return new Collection('NextEvent\PHPSDK\Model\DiscountCode', null, $discountCodes, $this->restClient);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching discount codes', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Persists the discount code(s) provided in the $codes argument
+   *
+   * Make sure you created the discount codes instances with {@link DiscountCode::spawn()}.
+   *
+   * On success the new discount code ids will be stored in the given instance(s).
+   *
+   * @param DiscountCode|array $codes Single or list of NextEvent\PHPSDK\Model\DiscountCode
+   * @return Collection
+   * @throws InvalidModelDataException If a discount code happens to have no assigned discount group
+   * @throws APIResponseException If the server rejects the request with an error response
+   */
+  public function createDiscountCode($codes)
+  {
+    if (!is_array($codes)) {
+      $codes = array($codes);
+    }
+    try {
+      $data = array('_embedded' => array('discount_code' => array()));
+      foreach ($codes as $i => $code) {
+        if (!$code->isValid()) {
+          throw new InvalidModelDataException("Invalid model data for DiscountCode instance [$i]");
+        }
+        $response = $this->authenticatedRequest('post', '/discount_code', $code->toArray());
+        $data['_embedded']['discount_code'][] = $response->getContent();
+      }
+
+      $collection = new Collection('NextEvent\PHPSDK\Model\DiscountCode', null, $data);
+      foreach ($collection as $i => $newCode) {
+        $codes[$i]->setSource($newCode->toArray());
+        $collection[$i] = $codes[$i];
+      }
+      $this->logger->debug('DiscountCodes created', ['codes' => $collection]);
+      return $collection;
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed creating discount codes', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+
+  /**
+   * Delete a discount code
+   *
+   * @param int|DiscountCode $discountCodeOrId
+   * @return bool successfully deleted
+   * @throws APIResponseException
+   * @throws EntityNotFoundException
+   */
+  public function deleteDiscountCode($discountCodeOrId)
+  {
+    if ($discountCodeOrId instanceof DiscountCode) {
+      $discountCodeOrId = $discountCodeOrId->getId();
+    }
+
+    $this->logger->info('Delete discount code', ['id' => $discountCodeOrId]);
+    try {
+      return $this->authenticatedRequest('delete', '/discount_code/' . $discountCodeOrId);
+    } catch (APIResponseException $ex) {
+      if ($ex->getCode() === 404) {
+        throw new EntityNotFoundException('Discount code not found for deletion', $ex->getCode(), $ex);
+      } else {
+        throw $ex;
+      }
     }
   }
 }

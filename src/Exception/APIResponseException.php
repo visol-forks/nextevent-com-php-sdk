@@ -188,10 +188,10 @@ class APIResponseException extends \Exception implements LogContextInterface
     $blocks = [$this->getMessage()];
 
     if ($this->request instanceof Request) {
-      $blocks[] = strval($this->request);
+      $blocks[] = \GuzzleHttp\Psr7\str($this->request);
     }
     if ($this->response instanceof Response) {
-      $blocks[] = strval($this->response);
+      $blocks[] = \GuzzleHttp\Psr7\str($this->response);
     }
     if ($withStackTrace) {
       $blocks = $this->getTraceAsString();

@@ -2,6 +2,21 @@
 
 All notable changes to the SDK will be documented in this file.
 
+<<<<<<< HEAD
+## 1.3.4
+
+* New/Changed Classes
+  * `EntityNotFoundException` has been added as common superclass of `OrderNotFoundException`, `OrderItemNotFoundException` and `ScanLogsNotFoundException`.
+  * `APIResponseException::dumpAsString()` has been fixed to work with new Guzzle PSR-7 models.
+  * `Model\DiscountCode` has new getters and setters for model attributes and is now a `MutableModel`.
+  * `Model\DiscountGroup` has been added.
+
+* Changes in the client
+  * `getDiscountGroups($query)` has been added to list configured discount groups.
+  * `getDiscountCodes($query)` has been added to list registered discount codes and their states.
+  * `createDiscountCode($codes)` has been added to import new discount codes to a certain group.
+  * `deleteDiscountCode($code)` has been added to delete voided discount codes.
+
 ## 1.3.3
 
 * Improvements
@@ -22,6 +37,12 @@ All notable changes to the SDK will be documented in this file.
   * AvailableItems were replaced by Capacity on BaseCategories (same meaning)
 
 * Changed Classes
+=======
+## 1.3.2
+* Added new Capacity property to Categories because they can be set now individually on each Category
+* AvailableItems were replaced by Capacity on BaseCategories (same meaning)
+* Added new getters:
+>>>>>>> added changelog for version 1.3.2
   * `BaseCategory::getCapacity()` and `Category::getCapacity()`
   * `Category::getAvailableItems()`
 

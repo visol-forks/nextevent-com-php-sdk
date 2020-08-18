@@ -7,7 +7,7 @@ namespace NextEvent\PHPSDK\Exception;
  *
  * @package NextEvent\PHPSDK\Exception
  */
-class ScanLogsNotFoundException extends APIResponseException
+class ScanLogsNotFoundException extends EntityNotFoundException
 {
 
 }

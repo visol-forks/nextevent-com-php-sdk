@@ -7,7 +7,7 @@ namespace NextEvent\PHPSDK\Exception;
  *
  * @package NextEvent\PHPSDK\Exception
  */
-class OrderNotFoundException extends APIResponseException
+class OrderNotFoundException extends EntityNotFoundException
 {
 
 }
