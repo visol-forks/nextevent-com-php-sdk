@@ -2,7 +2,12 @@
 
 All notable changes to the SDK will be documented in this file.
 
-<<<<<<< HEAD
+## 1.3.5
+
+* New Methods
+ * `Model\AccessCode::setAccessFrom()` has been added.
+ * `Model\AccessCode::setAccessTo()` has been added.
+
 ## 1.3.4
 
 * New/Changed Classes
@@ -37,12 +42,6 @@ All notable changes to the SDK will be documented in this file.
   * AvailableItems were replaced by Capacity on BaseCategories (same meaning)
 
 * Changed Classes
-=======
-## 1.3.2
-* Added new Capacity property to Categories because they can be set now individually on each Category
-* AvailableItems were replaced by Capacity on BaseCategories (same meaning)
-* Added new getters:
->>>>>>> added changelog for version 1.3.2
   * `BaseCategory::getCapacity()` and `Category::getCapacity()`
   * `Category::getAvailableItems()`
 

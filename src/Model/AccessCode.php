@@ -374,4 +374,44 @@ class AccessCode extends Model
       throw new AccessCodeValidateException('Call setRestClient first!');
     }
   }
+
+
+  /**
+   * Updates the `access_from` date for this access code.
+   *
+   * @param DateTime|string|null $date The new `access_from` date.
+   * @throws AccessCodeValidateException If no rest client has been set on this model.
+   * @return AccessCode
+   */
+  public function setAccessFrom($date) {
+    if (isset($this->restClient)) {
+      $data = array('access_from' => $date instanceof DateTime ? $date->__toString() : $date);
+      $re = $this->restClient->put('/access_code/' . $this->getId(), $data);
+      $content = $re->getContent();
+      $this->source['access_from'] = $content['access_from'];
+      return $this;
+    } else {
+      throw new AccessCodeValidateException('Call setRestClient first!');
+    }
+  }
+
+
+  /**
+   * Updates the `access_to` date for this access code.
+   *
+   * @param DateTime|string|null $date The new `access_to` date.
+   * @throws AccessCodeValidateException If no rest client has been set on this model.
+   * @return AccessCode
+   */
+  public function setAccessTo($date) {
+    if (isset($this->restClient)) {
+      $data = array('access_to' => $date instanceof DateTime ? $date->__toString() : $date);
+      $re = $this->restClient->put('/access_code/' . $this->getId(), $data);
+      $content = $re->getContent();
+      $this->source['access_to'] = $content['access_to'];
+      return $this;
+    } else {
+      throw new AccessCodeValidateException('Call setRestClient first!');
+    }
+  }
 }
