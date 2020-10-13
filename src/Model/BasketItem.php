@@ -93,6 +93,17 @@ class BasketItem extends Model
 
 
   /**
+   * Get the globally unique identifier of this item
+   *
+   * @return string UUID
+   */
+  public function getUuid()
+  {
+    return isset($this->source['uuid']) ? $this->source['uuid'] : null;
+  }
+
+
+  /**
    * Get the event identifier this item refers to
    *
    * @return string eventId
@@ -194,6 +205,7 @@ class BasketItem extends Model
    * Determine whether this basket item has seat information assigned
    * 
    * @return bool True if this is a seated ticket and seat information is available
+   * @deprecated since 1.4.0
    */
   public function hasSeat()
   {
@@ -205,10 +217,54 @@ class BasketItem extends Model
    * Getter for seat information
    *
    * @return Seat|null
+   * @deprecated since 1.4.0
    */
   public function getSeat()
   {
     return $this->seat;
+  }
+
+
+  /**
+   * Determine whether this basket item has additional information assigned
+   * 
+   * @return bool True if additional information is available
+   */
+  public function hasInfo()
+  {
+    return !empty($this->info) || !empty($this->seat);
+  }
+
+
+  /**
+   * Getter for additional item information
+   *
+   * @return string|null
+   */
+  public function getInfo()
+  {
+    if (!empty($this->info)) {
+      return $this->info;
+    }
+
+    // fallback to seat information
+    if (!empty($this->seat)) {
+      return $this->seat->getDisplayname();
+    }
+
+    return null;
+  }
+
+
+  /**
+   * Getter for edit steps listing
+   *
+   * @return array List with hash arrays describing available editing steps:
+   *   ['label' => '<localized text>', 'action' => '<unique step name>', 'url' => '<"link" argument for embed widget>']
+   */
+  public function getEditSteps()
+  {
+    return isset($this->source['edit_steps']) ? $this->source['edit_steps'] : [];
   }
 
 

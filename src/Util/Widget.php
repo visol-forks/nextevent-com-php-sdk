@@ -134,7 +134,7 @@ class Widget
    *
    * @param array|string $params Hash array with widget parameters or string with ID of the event to book tickets for
    * @return string <script> tag loading the booking widget
-   * @see http://docs.nextevent.com/sdk/#embed-the-booking-widget
+   * @see https://developer.nextevent.com/#embed-the-booking-widget
    */
   public function generateEmbedCode($params = [])
   {
@@ -177,7 +177,10 @@ class Widget
     }
 
     // append known embed parameters to url
-    if (isset($params['eventId'])) {
+    if (isset($params['link'])) {
+      $path = [$params['link']];
+      unset($params['link'], $params['eventId']);
+    } else if (isset($params['eventId'])) {
       $path[] = 'event/' . $params['eventId'];
       unset($params['eventId']);
     }
@@ -209,7 +212,7 @@ class Widget
         $q['query'] = join(';', $query);
       }
       if (!empty($q)) {
-        $src .= '&' . http_build_query($q, null, '&', PHP_QUERY_RFC3986);
+        $src .= (strpos($src, '?') ? '&' : '?') . http_build_query($q, null, '&', PHP_QUERY_RFC3986);
       }
     }
 

@@ -2,6 +2,21 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.4.0
+
+* Improvements
+  * Adapt to recent changes in backend now supporting interconnection bookings
+
+* Changed Classes
+  * Add new widget parameter `link` in `Widget::generateEmbedCode()`.
+  * New method `Model\Basketitem::getEditSteps()` listing available edit options for each item.
+  * Methods `Model\Basketitem::hasSeat()` and `Model\Basketitem::getSeat()` are now deprecated. Use `hasInfo()` and `getInfo()` methods instead.
+
+* Changes in the client
+  * `getOrder($orderId)` Fetches now all embeddable data from the server by setting the second parameter to `['*']`.
+  * New method `getOrderDocuments($orderId)` returning a list of downloadable documents related to the given order.
+    This includes the documents returned by `Client::getTicketDocuments($orderId)` which is now deprecated in favor of this new method.
+
 ## 1.3.5
 
 * New Methods

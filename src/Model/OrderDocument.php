@@ -3,21 +3,20 @@
 namespace NextEvent\PHPSDK\Model;
 
 /**
- * TicketDocument model
+ * OrderDocument model
  *
- * Represents a printable PDF document attached to a ticket
+ * Represents a printable PDF document attached to an order
  *
  * @package NextEvent\PHPSDK\Model
  */
-class TicketDocument extends OrderDocument
+class OrderDocument extends Model
 {
   /**
    * @inheritdoc
    */
   public function isValid()
   {
-    return isset($this->source['document_id']) &&
-      isset($this->source['uri']);
+    return isset($this->source['uri']);
   }
 
   /**
@@ -28,5 +27,15 @@ class TicketDocument extends OrderDocument
   public function getDownloadUrl()
   {
     return $this->source['uri'];
+  }
+
+  /**
+   * Getter for the document title/label
+   *
+   * @return string
+   */
+  public function getTitle()
+  {
+    return $this->get('title');
   }
 }

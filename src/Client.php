@@ -33,6 +33,7 @@ use NextEvent\PHPSDK\Model\Event;
 use NextEvent\PHPSDK\Model\Order;
 use NextEvent\PHPSDK\Model\Payment;
 use NextEvent\PHPSDK\Model\Price;
+use NextEvent\PHPSDK\Model\OrderDocument;
 use NextEvent\PHPSDK\Model\TicketDocument;
 use NextEvent\PHPSDK\Model\Token;
 use NextEvent\PHPSDK\Model\CancellationRequest;
@@ -823,16 +824,20 @@ class Client
    *
    * @param int $orderId ID of the order record to fetch tickets for
    * @param int $waitFor Number of seconds to wait for tickets to be issued
+   * @param Order $order Fetched order instance
    * @return TicketDocument[]
    * @throws MissingDocumentException
+   * @deprecated 1.4.0 (use Client::getOrderDocuments() instead)
    */
-  public function getTicketDocuments($orderId, $waitFor=0)
+  public function getTicketDocuments($orderId, $waitFor=0, $order=null)
   {
     $timeout = microtime(true) + $waitFor - 0.35;
-    $order = $this->getOrder($orderId, ['tickets','document']);
+    if (!$order) {
+      $order = $this->getOrder($orderId, ['tickets','document']);
+    }
 
     // repeat fetching if tickets are not yet available
-    while (microtime(true) < $timeout && !$order->allTicketsIssued()) {
+    while (microtime(true) < $timeout && !($order->isComplete() && $order->allTicketsIssued())) {
       usleep(300000);
       $order = $this->getOrder($orderId, ['tickets','document']);
     }
@@ -859,17 +864,53 @@ class Client
 
 
   /**
+   * Get Documents related to the given order
+   *
+   * When the order is paid, tickets and other documents are generated 
+   * and can be downloaded.
+   *
+   * @param int $orderId ID of the order record to fetch documents for
+   * @param int $waitFor Number of seconds to wait for documents to be generated
+   * @return OrderDocument[]
+   * @throws MissingDocumentException
+   */
+  public function getOrderDocuments($orderId, $waitFor=0)
+  {
+    $timeout = microtime(true) + $waitFor - 0.35;
+    $order = $this->getOrder($orderId, ['tickets','document']);
+
+    // repeat fetching if documents are not yet available
+    while (microtime(true) < $timeout && $order->expectDocuments() && !$order->hasDocuments()) {
+      usleep(300000);
+      $waitFor -= 0.3;
+      $order = $this->getOrder($orderId, ['tickets','document']);
+    }
+
+    $documents = $order->getDocuments();
+
+    try {
+      $documents = array_merge($this->getTicketDocuments($orderId, max(0, $waitFor), $order), $documents);
+    } catch (MissingDocumentException $ex) {
+      // ignore this (there might be no tickets available)
+    } catch (\OutOfBoundsException $ex) {
+      // ignore mock queue empty exceptions
+    }
+
+    return $documents;
+  }
+
+  /**
    * Get full order data
    *
    * use order->invoice->status == 'paid' for checking invoice status
    *
    * @param int $orderId The order ID
-   * @param array $embed List of associations to embed in the response (any of 'tickets','document','invoice','items', 'user', 'sales_channel')
+   * @param array $embed List of associations to embed in the response (any of 'tickets','document','invoice','items', 'user', 'sales_channel', 'vouchers')
    * @return Order Order model
    * @throws OrderNotFoundException
    * @throws APIResponseException
    */
-  public function getOrder($orderId, $embed = ['tickets','document','invoice'])
+  public function getOrder($orderId, $embed = ['*'])
   {
     try {
       if (!is_array($embed)) {

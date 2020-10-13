@@ -22,6 +22,13 @@ class Order extends Model
   protected $tickets = [];
 
   /**
+   * Container for order document Collection
+   *
+   * @var OrderDocument[]
+   */
+  protected $documents = [];
+
+  /**
    * Cached array list of OrderItem entities
    *
    * @var OrderItem[]
@@ -51,6 +58,15 @@ class Order extends Model
           return new Ticket($source);
         },
         $this->source['tickets']
+      );
+    }
+
+    if (!empty($source['documents'])) {
+      $this->documents = array_map(
+        function ($source) {
+          return new OrderDocument($source);
+        },
+        $this->source['documents']
       );
     }
 
@@ -93,6 +109,17 @@ class Order extends Model
   public function getId()
   {
     return $this->source['order_id'];
+  }
+
+
+  /**
+   * Get the globally unique identifier of this item
+   *
+   * @return string UUID
+   */
+  public function getUuid()
+  {
+    return isset($this->source['uuid']) ? $this->source['uuid'] : null;
   }
 
 
@@ -253,6 +280,40 @@ class Order extends Model
       }
     }
     return !empty($this->tickets);
+  }
+
+
+  /**
+   * Check if documents/tickets can be expected to be issued for this order
+   *
+   * @return boolean
+   */
+  public function expectDocuments()
+  {
+    return !$this->isComplete() || !empty($this->source['expect_documents']);
+  }
+
+  /**
+   * Check order if documents are available
+   * 
+   * This chech includes tickets
+   *
+   * @return bool
+   */
+  public function hasDocuments()
+  {
+    return !empty($this->documents) || $this->hasTickets();
+  }
+
+
+  /**
+   * Getter for order documents
+   *
+   * @return array of OrderDocument models
+   */
+  public function getDocuments()
+  {
+    return $this->documents;
   }
 
 

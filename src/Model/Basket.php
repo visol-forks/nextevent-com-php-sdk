@@ -43,6 +43,17 @@ class Basket extends Model
 
 
   /**
+   * Get the globally unique identifier of this item
+   *
+   * @return string UUID
+   */
+  public function getUuid()
+  {
+    return isset($this->source['uuid']) ? $this->source['uuid'] : null;
+  }
+
+
+  /**
    * Getter for the basket's expiration date
    *
    * Can be null if the basket has no specific expiration date
@@ -163,11 +174,31 @@ class Basket extends Model
       if (($parent_id = $item->get('parent_ticket_id')) && isset($items[$parent_id])) {
         $parent = $items[$parent_id];
         $parent->addChildItem($item);
+      } else if (($parent_uuid = $item->get('parent_uuid')) && ($parent = self::findItemByUuid($items, $parent_uuid))) {
+        $parent->addChildItem($item);
       } else {
         $result[] = $item;
       }
     }
 
     return $result;
+  }
+
+  /**
+   * Internal helper method searching the given list of items by UUID
+   *
+   * @param array $items
+   * @param string $uuid
+   * @return BasketItem|null
+   */
+  protected static function findItemByUuid($items, $uuid)
+  {
+    foreach ($items as $item) {
+      if ($item->getUuid() === $uuid) {
+        return $item;
+      }
+    }
+
+    return null;
   }
 }

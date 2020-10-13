@@ -80,7 +80,7 @@ class Ticket extends Model
   public function getDocument()
   {
     if ($this->hasDocument()) {
-      return new TicketDocument($this->source['document']);
+      return new TicketDocument($this->source['document'] + ['title' => $this->getEventTitle()]);
     } else {
       throw new MissingDocumentException('Missing document for ticket ' . $this->getId());
     }
