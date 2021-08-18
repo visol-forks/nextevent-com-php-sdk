@@ -1750,4 +1750,43 @@ class Client
       }
     }
   }
+
+  /**
+   * @param AccessCode $accessCode
+   * @return AccessCode
+   * @throws APIResponseException
+   */
+  public function createAccessCode(AccessCode $accessCode)
+  {
+    try {
+      $response = $this->authenticatedRequest('post', '/access_code', $accessCode->toArray());
+      $newAccessCode = $this->getAccessCode($response->getContent()['access_code_id']);
+      $accessCode->setSource($newAccessCode->toArray());
+      $this->logger->debug('AccessCode created', ['accessCode' => $newAccessCode]);
+      return $accessCode;
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed creating accessCode', $ex->toLogContext());
+      throw $ex;
+    }
+  }
+
+  /**
+   * Fetch single AccessCode by $accessCodeId
+   *
+   * @param string $accessCodeId
+   * @return AccessCode
+   * @throws APIResponseException
+   */
+  public function getAccessCode($accessCodeId)
+  {
+    try {
+      $response = $this->authenticatedRequest('get', '/jsonld/access_code/' . $accessCodeId);
+      $accessCode = $response->getEmbedded();
+      $this->logger->debug('Fetched accessCode ' . $accessCodeId, ['accessCodeId' => $accessCodeId]);
+      return new AccessCode($accessCode);
+    } catch (APIResponseException $ex) {
+      $this->logger->error('Failed fetching accessCode ' . $accessCodeId, $ex->toLogContext());
+      throw $ex;
+    }
+  }
 }

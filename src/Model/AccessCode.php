@@ -15,8 +15,15 @@ use NextEvent\PHPSDK\Exception\AccessCodeValidateException;
  *
  * @package NextEvent\PHPSDK\Model
  */
-class AccessCode extends Model
+class AccessCode extends MutableModel implements Spawnable
 {
+  /**
+   * Internal flag for determining whether this access_code is new, i.e. not persisted yet.
+   *
+   * @var bool
+   */
+  protected $_isNew;
+
   /**
    * Constant for indicating the state 'valid'.
    *
@@ -94,13 +101,27 @@ class AccessCode extends Model
   /**
    * @inheritdoc
    */
+  public function isNew()
+  {
+    return $this->_isNew;
+  }
+
+  /**
+   * @inheritdoc
+   */
   public function isValid()
   {
-    return isset($this->source['access_code_id']) &&
-            isset($this->source['code']) &&
-            isset($this->source['category_id']) &&
-            isset($this->source['state']) &&
-            array_search($this->source['state'], self::$possibleStates, true) >= 0;
+    if ($this->isNew()) {
+      return isset($this->source['code']) &&
+              isset($this->source['category_id']) &&
+              isset($this->source['price_id']);
+    } else {
+      return isset($this->source['access_code_id']) &&
+              isset($this->source['code']) &&
+              isset($this->source['category_id']) &&
+              isset($this->source['state']) &&
+              array_search($this->source['state'], self::$possibleStates, true) >= 0;
+    }
   }
 
 
@@ -413,5 +434,33 @@ class AccessCode extends Model
     } else {
       throw new AccessCodeValidateException('Call setRestClient first!');
     }
+  }
+
+  /**
+   * @access private
+   * @inheritdoc
+   */
+  public function setSource($source)
+  {
+    parent::setSource($source);
+    $this->_isNew = false;
+  }
+  
+  /**
+   * Creates a new access_code instance with the given data.
+   *
+   * @param array $data
+   * @return AccessCode
+   * @throws InvalidModelDataException
+   */
+  public static function spawn($data)
+  {
+    $data['state'] = $data['state'] ?? 'valid';
+    $accessCode = new AccessCode($data);
+    $accessCode->_isNew = true;
+    if (!$accessCode->isValid()) {
+      throw new InvalidModelDataException('Given $data for ' . get_class($accessCode) . ' creation is invalid');
+    }
+    return $accessCode;
   }
 }

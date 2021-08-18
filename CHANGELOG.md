@@ -2,6 +2,15 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.4.1
+
+* Compatibility
+  * Support Guzzle versions greater than 6.3.3 (e.g. newer versions 7.x)
+
+* Changes in the client
+  * `createAccessCode($accessCode)` has been added to import access codes from an external source.
+  * `getAccessCode($accessCodeId)` Fetch single AccessCode.
+
 ## 1.4.0
 
 * Improvements
