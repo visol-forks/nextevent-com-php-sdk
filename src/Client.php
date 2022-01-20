@@ -227,7 +227,7 @@ class Client
 
     // initialize httpClients
     $httpClientDefaults = [
-      'timeout' => 10,
+      'timeout' => isset($this->options['timeoutHttpClient']) ? $this->options['timeoutHttpClient'] : 10,
       'headers' => [],
       'base_uri' => $this->options['appUrl'],
       'handler' => isset($this->options['handler']) ? $this->options['handler'] : null,
