@@ -109,7 +109,7 @@ class OpcacheStore extends MemoryStore
   protected function readData()
   {
     if (!isset($this->store)) {
-      $this->store = @include($this->fileName) ?: [];
+      $this->store = file_exists($this->fileName) ? include($this->fileName) : [];
     }
   }
 
