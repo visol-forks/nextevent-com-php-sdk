@@ -30,6 +30,6 @@ Build the documentation with `phing apidoc`.
 
 # License
 
-Copyright (C) 2021, NextEvent AG, [nextevent.com](https://nextevent.com)
+Copyright (C) 2022, NextEvent AG, [nextevent.com](https://nextevent.com)
 
 Published under the [MIT License](https://opensource.org/licenses/MIT), all rights reserved.

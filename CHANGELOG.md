@@ -2,6 +2,15 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.4.2
+
+* Compatibility
+  * Changed warning suppression for PHP 8
+  * Adjust psr/log to version ^1.0
+
+* Changes in the client
+  * Add timeout-option (timeoutHttpClient) for API requests
+
 ## 1.4.1
 
 * Compatibility
