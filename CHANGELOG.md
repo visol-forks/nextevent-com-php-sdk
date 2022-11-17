@@ -2,6 +2,13 @@
 
 All notable changes to the SDK will be documented in this file.
 
+## 1.4.3
+
+* New Methods
+ * `Model\AccessCode::setState()` added new method to set state on AccessCode.
+ * `Model\AccessCodeCollection::setState()` added new method to set state on AccessCodeCollection.
+ * `Model\AccessCodeCollection::setAccessFrom()` added method to use in collection.
+ * `Model\AccessCodeCollection::setAccessTo()` added method to use in collection.
 ## 1.4.2
 
 * Compatibility

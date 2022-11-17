@@ -437,6 +437,37 @@ class AccessCode extends MutableModel implements Spawnable
   }
 
   /**
+   * Updates the `state` for this access code.
+   *
+   * @param int $state The new state of the code
+   * @see AccessCode::STATE_VALID
+   * @see AccessCode::STATE_CANCELLED
+   * @see AccessCode::STATE_EXTERNAL
+   * @throws AccessCodeValidateException If no rest client has been set on this model.<br>
+   *                                     If the given $state is unknown
+   * @return AccessCode
+   */
+  public function setState($state) {
+    if (isset($this->restClient)) {
+      switch ($state) {
+        case self::STATE_VALID: $setState = 'valid'; break;
+        case self::STATE_CANCELLED: $setState = 'cancelled'; break;
+        case self::STATE_EXTERNAL: $setState = 'external'; break;
+        default: throw new AccessCodeValidateException('Unknown state to set');
+      }
+
+      $data = array('state' => $setState);
+      $re = $this->restClient->put('/access_code/' . $this->getId(), $data);
+      $content = $re->getContent();
+      $this->source['state'] = $content['state'];
+      return $this;
+    } else {
+      throw new AccessCodeValidateException('Call setRestClient first!');
+    }
+  }
+
+
+  /**
    * @access private
    * @inheritdoc
    */

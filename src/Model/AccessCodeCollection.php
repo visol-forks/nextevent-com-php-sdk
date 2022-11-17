@@ -117,4 +117,56 @@ class AccessCodeCollection extends Collection
       throw new AccessCodeValidateException('Call setRestClient first!');
     }
   }
+
+
+  /**
+   * Updates the `access_from` date for this access code.
+   *
+   * @param DateTime|string|null $date The new `access_from` date.
+   * @throws AccessCodeValidateException If no rest client has been set on this model.
+   * @return AccessCodeCollection
+   */
+  public function setAccessFrom($date)
+  {
+    foreach ($this as $code) {
+      $code->setAccessFrom($date);
+    }
+    return $this;
+  }
+
+
+  /**
+   * Updates the `access_to` date for this access code.
+   *
+   * @param DateTime|string|null $date The new `access_to` date.
+   * @throws AccessCodeValidateException If no rest client has been set on this model.
+   * @return AccessCodeCollection
+   */
+  public function setAccessTo($date)
+  {
+    foreach ($this as $code) {
+      $code->setAccessTo($date);
+    }
+    return $this;
+  }
+
+
+  /**
+   * Updates the `state` for this access code.
+   *
+   * @param int $state The new state of the code
+   * @see AccessCode::STATE_VALID
+   * @see AccessCode::STATE_CANCELLED
+   * @see AccessCode::STATE_EXTERNAL
+   * @throws AccessCodeValidateException If no rest client has been set on this model.<br>
+   *                                     If the given $state is unknown
+   * @return AccessCodeCollection
+   */
+  public function setState($state)
+  {
+    foreach ($this as $code) {
+      $code->setState($state);
+    }
+    return $this;
+  }
 }
